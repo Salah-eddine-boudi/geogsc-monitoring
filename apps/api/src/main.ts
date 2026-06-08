@@ -6,6 +6,7 @@ import rateLimit from '@fastify/rate-limit'
 import dotenv from 'dotenv'
 import { errorHandler } from './interfaces/error-handler.js'
 import { authRoutes } from './interfaces/routes/auth.routes.js'
+import { brigadesRoutes } from './interfaces/routes/brigades.routes.js'
 
 dotenv.config()
 
@@ -26,6 +27,7 @@ await app.register(jwt, { secret: process.env.JWT_SECRET ?? 'dev-secret' })
 app.setErrorHandler(errorHandler)
 
 await app.register(authRoutes, { prefix: '/auth' })
+await app.register(brigadesRoutes, { prefix: '/brigades' })
 
 app.get('/health', async () => ({
   status: 'ok',
