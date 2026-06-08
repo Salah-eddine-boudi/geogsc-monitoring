@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  BRIGADE
+  IGT
+  ADMIN
+}
+
+enum StatutFiche {
+  BROUILLON
+  SOUMISE
+  VALIDEE
+  REJETEE
+}
+
+enum StatutMission {
+  PLANIFIEE
+  EN_COURS
+  TERMINEE
+}
+
+enum TypeOuvrage {
+  PLATINE
+  POTEAU
+  VOILE
+  GRADIN
+  FONDATION
+  VRD
+  AUTRE
+}
+
+enum TypeControle {
+  IMPLANTATION
+  ALTIMETRIE
+  VERTICALITY
+  RECEPTION
+  CONTRADICTOIRE
+}
+
+enum StatutControle {
+  CONFORME
+  NON_CONFORME
+  RESERVE
+}
+
+// ─── USER ────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  nom       String
+  prenom    String
+  email     String   @unique
+  password  String
+  role      Role
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  brigade       Brigade?       @relation(fields: [brigadeId], references: [id])
+  brigadeId     String?
+  fichesCreees  FicheJournaliere[] @relation("FicheCreateur")
+  fichesValidees FicheJournaliere[] @relation("FicheValidateur")
+
+  @@map("users")
+}
+
+// ─── BRIGADE ─────────────────────────────────────────────────────────────────
+
+model Brigade {
+  id        String   @id @default(cuid())
+  nom       String   @unique  // "Équipe 01" .. "Équipe 04"
+  chef      String            // Nom du chef d'équipe
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  membres   User[]
+  fiches    FicheJournaliere[]
+
+  @@map("brigades")
+}
+
+// ─── FICHE JOURNALIERE ───────────────────────────────────────────────────────
+
+model FicheJournaliere {
+  id          String      @id @default(cuid())
+  date        DateTime
+  statut      StatutFiche @default(BROUILLON)
+  observations String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  brigade     Brigade  @relation(fields: [brigadeId], references: [id])
+  brigadeId   String
+
+  createur    User     @relation("FicheCreateur", fields: [createurId], references: [id])
+  createurId  String
+
+  validateur  User?    @relation("FicheValidateur", fields: [validateurId], references: [id])
+  validateurId String?
+
+  missions    Mission[]
+
+  @@unique([brigadeId, date])
+  @@map("fiches_journalieres")
+}
+
+// ─── MISSION ─────────────────────────────────────────────────────────────────
+
+model Mission {
+  id          String        @id @default(cuid())
+  statut      StatutMission @default(PLANIFIEE)
+  heureDebut  DateTime?
+  heureFin    DateTime?
+  observations String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
+  ficheId     String
+
+  ouvrage     Ouvrage   @relation(fields: [ouvrageId], references: [id])
+  ouvrageId   String
+
+  controles   Controle[]
+
+  @@map("missions")
+}
+
+// ─── OUVRAGE ─────────────────────────────────────────────────────────────────
+
+model Ouvrage {
+  id          String      @id @default(cuid())
+  reference   String      @unique  // ex: "POT-A-12"
+  designation String
+  type        TypeOuvrage
+  axe         String?     // ex: "Axe A", "Tribune Nord-Ouest"
+  niveau      String?     // ex: "N+1", "RDC"
+  actif       Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  missions    Mission[]
+
+  @@map("ouvrages")
+}
+
+// ─── CONTROLE ────────────────────────────────────────────────────────────────
+
+model Controle {
+  id            String         @id @default(cuid())
+  type          TypeControle
+  statut        StatutControle
+  ecartX        Float?         // en mm
+  ecartY        Float?         // en mm
+  ecartZ        Float?         // en mm
+  toleranceX    Float?         // en mm
+  toleranceY    Float?         // en mm
+  toleranceZ    Float?         // en mm
+  observations  String?
+  createdAt     DateTime       @default(now())
+
+  mission       Mission  @relation(fields: [missionId], references: [id])
+  missionId     String
+
+  @@map("controles")
+}
