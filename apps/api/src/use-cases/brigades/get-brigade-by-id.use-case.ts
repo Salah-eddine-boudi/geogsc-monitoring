@@ -9,28 +9,19 @@
  * RÈGLE MÉTIER IMPORTANTE :
  * Une Brigade ne peut voir QUE sa propre brigade.
  * Un IGT/ADMIN peut voir n'importe quelle brigade.
- *
- * EXEMPLE :
- * Brigade 01 connectée → essaie de voir Brigade 02
- * → ForbiddenError (pas le droit)
  */
 
-import type { IBrigadeRepository } from '../../domain/repositories/brigade.repository.js'
+import type { IBrigadeRepository } from '../../domain/brigade.repository.js'
 import type { BrigadeWithMembers } from '../../domain/entities/brigade.entity.js'
 import { NotFoundError, ForbiddenError } from '../../domain/errors.js'
 
 export type GetBrigadeByIdInput = {
   brigadeId: string   // ID de la brigade demandée
-  userRole: string    // rôle de l'utilisateur connecté
+  userRole: string    // rôle de l'utilisateur connecté (ADMIN/IGT/BRIGADE)
   userBrigadeId: string | undefined  // brigade de l'utilisateur connecté
 }
 
 /**
- * Use-case GetBrigadeById.
- *
- * CONTRÔLE D'ACCÈS :
- * - ADMIN/IGT → accès à toute brigade
- * - BRIGADE   → accès seulement à SA brigade
  *
  * @param input             - ID brigade + infos utilisateur connecté
  * @param brigadeRepository - contrat repository
@@ -45,10 +36,10 @@ export async function getBrigadeByIdUseCase(
   if (
     input.userRole === 'BRIGADE' &&
     input.userBrigadeId !== input.brigadeId
-    // sa brigade ≠ brigade demandée → accès refusé
+    
   ) {
     throw new ForbiddenError()
-    // HTTP 403 — "tu es connecté mais tu n'as pas le droit"
+    // HTTP 403 
   }
 
   // Cherche la brigade avec ses membres

@@ -7,6 +7,7 @@ import dotenv from 'dotenv'
 import { errorHandler } from './interfaces/error-handler.js'
 import { authRoutes } from './interfaces/routes/auth.routes.js'
 import { brigadesRoutes } from './interfaces/routes/brigades.routes.js'
+import { fichesRoutes } from './interfaces/routes/fiches.routes.js'
 
 dotenv.config()
 
@@ -28,6 +29,7 @@ app.setErrorHandler(errorHandler)
 
 await app.register(authRoutes, { prefix: '/auth' })
 await app.register(brigadesRoutes, { prefix: '/brigades' })
+await app.register(fichesRoutes, { prefix: '/fiches' })
 
 app.get('/health', async () => ({
   status: 'ok',

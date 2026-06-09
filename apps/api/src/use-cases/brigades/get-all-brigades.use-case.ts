@@ -6,13 +6,6 @@
  * - IGT Hakim → voit toutes les brigades actives sur le dashboard
  * - ADMIN     → voit toutes les brigades (actives + inactives)
  * - BRIGADE   → voit seulement SA brigade (filtré dans la route)
- *
- * SCÉNARIO CONCRET :
- * IGT ouvre l'app → dashboard affiche :
- *   ✅ Équipe 01 — AIT KADIR    — 3 membres
- *   ✅ Équipe 02 — TAKI         — 2 membres
- *   ✅ Équipe 03 — JEMI         — 3 membres
- *   ⛔ Équipe 04 — ALLAOUI      — suspendue
  */
 
 import type { IBrigadeRepository } from '../../domain/brigade.repository.js'
@@ -21,19 +14,15 @@ import type { BrigadeEntity } from '../../domain/entities/brigade.entity.js'
 /**
  * Paramètres du use-case.
  *
- * @property role            - rôle de l'utilisateur connecté
- *                             ADMIN → voit tout
- *                             IGT/BRIGADE → voit seulement les actives
+ * @property role            -
+ *                             
  * @property includeInactive - forcé à true seulement pour ADMIN
  */
 export type GetAllBrigadesInput = {
   role: string
 }
 
-/**
- * Résultat retourné au frontend.
- * Liste de brigades avec métadonnées.
- */
+
 export type GetAllBrigadesResult = {
   brigades: BrigadeEntity[]
   total: number
