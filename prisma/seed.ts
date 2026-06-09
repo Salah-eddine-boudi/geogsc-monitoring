@@ -4,7 +4,7 @@
  * NE JAMAIS exécuter en production avec de vrais mots de passe.
  */
 
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, TypeOuvrage } from '@prisma/client'
 import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
@@ -74,6 +74,28 @@ async function main() {
   })
 
   console.log('✅ Seed terminé — utilisateurs créés')
+
+  // Ouvrages de référence GSC
+  const ouvrages = [
+    { reference: 'PLT-A-01', designation: 'Platine charpente axe A-01', type: TypeOuvrage.PLATINE, axe: 'Axe A', niveau: 'R+1' },
+    { reference: 'PLT-A-02', designation: 'Platine charpente axe A-02', type: TypeOuvrage.PLATINE, axe: 'Axe A', niveau: 'R+1' },
+    { reference: 'POT-B-01', designation: 'Poteau béton axe B-01', type: TypeOuvrage.POTEAU, axe: 'Axe B', niveau: 'RDC' },
+    { reference: 'POT-B-02', designation: 'Poteau béton axe B-02', type: TypeOuvrage.POTEAU, axe: 'Axe B', niveau: 'RDC' },
+    { reference: 'GRD-N-01', designation: 'Gradin Tribune Nord secteur 1', type: TypeOuvrage.GRADIN, axe: 'Tribune Nord', niveau: null },
+    { reference: 'GRD-N-02', designation: 'Gradin Tribune Nord secteur 2', type: TypeOuvrage.GRADIN, axe: 'Tribune Nord', niveau: null },
+    { reference: 'VRD-001', designation: 'Réseau VRD zone parking', type: TypeOuvrage.VRD, axe: null, niveau: null },
+    { reference: 'FON-001', designation: 'Fondation pieux forés zone A', type: TypeOuvrage.FONDATION, axe: 'Zone A', niveau: null },
+  ]
+
+  for (const ouvrage of ouvrages) {
+    await prisma.ouvrage.upsert({
+      where: { reference: ouvrage.reference },
+      update: {},
+      create: ouvrage
+    })
+  }
+
+  console.log('✅ Ouvrages créés')
 }
 
 main()
