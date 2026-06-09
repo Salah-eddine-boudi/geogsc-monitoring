@@ -69,6 +69,7 @@ model User {
   brigadeId     String?
   fichesCreees  FicheJournaliere[] @relation("FicheCreateur")
   fichesValidees FicheJournaliere[] @relation("FicheValidateur")
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
@@ -171,4 +172,18 @@ model Controle {
   missionId     String
 
   @@map("controles")
+}
+
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
 }
