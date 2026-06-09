@@ -3,11 +3,6 @@
  * @description Use-case : créer une nouvelle brigade.
  *
  * ACCÈS : ADMIN uniquement
- *
- * SCÉNARIO CONCRET :
- * Le projet GSC s'agrandit en juin 2026.
- * ADMIN crée une nouvelle "Équipe 05" avec M. BENALI comme chef.
- *
  * RÈGLES MÉTIER :
  * 1. Seul ADMIN peut créer une brigade
  *    (vérifié dans la route via requireRole)
@@ -15,13 +10,12 @@
  * 3. Le nom et le chef sont obligatoires
  */
 
-import type { IBrigadeRepository } from '../../domain/repositories/brigade.repository.js'
+import type { IBrigadeRepository } from '../../domain/brigade.repository.js'
 import type { BrigadeEntity } from '../../domain/entities/brigade.entity.js'
 import { ConflictError } from '../../domain/errors.js'
 
 /**
- * Données nécessaires pour créer une brigade.
- *
+ 
  * @property nom  - "Équipe 05" — doit être unique en BDD
  * @property chef - "M. BENALI Ahmed" — nom complet du chef
  */
@@ -31,12 +25,6 @@ export type CreateBrigadeInput = {
 }
 
 /**
- * Use-case CreateBrigade.
- *
- * ÉTAPES :
- * 1. Vérifie que le nom n'existe pas déjà → ConflictError si doublon
- * 2. Crée la brigade en BDD
- * 3. Retourne la brigade créée
  *
  * @param input             - nom et chef de la nouvelle brigade
  * @param brigadeRepository - contrat repository
