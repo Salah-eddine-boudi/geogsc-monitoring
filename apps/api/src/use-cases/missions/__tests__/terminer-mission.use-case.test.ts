@@ -3,14 +3,14 @@
  * @description Tests unitaires — terminaison d'une mission.
  *
  * CE QU'ON TESTE :
- * ✅ Terminaison EN_COURS → TERMINEE
- * ✅ heureFin automatique si non fournie
- * ✅ heureFin fournie utilisée
- * ❌ Mission inexistante → NotFoundError
- * ❌ Mission PLANIFIEE → AppError STATUT_INVALIDE
- * ❌ Mission déjà TERMINEE → AppError STATUT_INVALIDE
- * ❌ heureFin < heureDebut → AppError HEURE_INVALIDE
- * ❌ Fiche non BROUILLON → AppError STATUT_INVALIDE
+ * Terminaison EN_COURS → TERMINEE
+ * heureFin automatique si non fournie
+ * heureFin fournie utilisée
+ * Mission inexistante → NotFoundError
+ * Mission PLANIFIEE → AppError STATUT_INVALIDE
+ * Mission déjà TERMINEE → AppError STATUT_INVALIDE
+ * heureFin < heureDebut → AppError HEURE_INVALIDE
+ * Fiche non BROUILLON → AppError STATUT_INVALIDE
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'

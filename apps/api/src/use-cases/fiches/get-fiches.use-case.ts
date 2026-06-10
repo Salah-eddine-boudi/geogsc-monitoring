@@ -6,17 +6,17 @@
  * SCÉNARIOS SELON LE RÔLE :
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * 👷 BRIGADE (M. AIT KADIR) :
+ * BRIGADE (M. AIT KADIR) :
  * → voit SEULEMENT ses propres fiches
  * → ne peut pas voir les fiches des autres brigades
  * → peut filtrer par statut et date
  *
- * 🔍 IGT (M. CHAACHOUI) :
+ * IGT (M. CHAACHOUI) :
  * → voit TOUTES les fiches de toutes les brigades
  * → filtre typique : statut=SOUMISE pour voir ce qui est à valider
  * → peut filtrer par brigade, date, statut
  *
- * 👑 ADMIN :
+ * ADMIN :
  * → mêmes droits que IGT
  * → peut voir tout l'historique
  *

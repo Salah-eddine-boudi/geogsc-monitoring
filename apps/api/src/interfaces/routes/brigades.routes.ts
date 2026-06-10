@@ -40,7 +40,6 @@ const updateBrigadeSchema = z.object({
   chef: z.string().min(3).max(100).optional(),
   actif: z.boolean().optional()
 })
-
 // Instance unique du repository — partagée entre toutes les routes
 const brigadeRepository = new BrigadePrismaRepository()
 
