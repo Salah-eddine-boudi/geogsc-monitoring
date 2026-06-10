@@ -10,6 +10,7 @@ import { brigadesRoutes } from './interfaces/routes/brigades.routes.js'
 import { fichesRoutes } from './interfaces/routes/fiches.routes.js'
 import { missionsRoutes } from './interfaces/routes/missions.routes.js'
 import { controlesRoutes } from './interfaces/routes/controles.routes.js'
+import { rapportsRoutes } from './interfaces/routes/rapports.routes.js'
 import { ouvragesRoutes } from './interfaces/routes/ouvrages.routes.js'
 
 dotenv.config()
@@ -36,7 +37,8 @@ await app.register(fichesRoutes, { prefix: '/fiches' })
 await app.register(missionsRoutes, { prefix: '/fiches/:ficheId/missions' })
 await app.register(controlesRoutes, { prefix: '/fiches/:ficheId/missions/:missionId/controles' })
 await app.register(ouvragesRoutes, { prefix: '/ouvrages' })
-
+await app.register(rapportsRoutes, { prefix: '/rapports' })
+import { rapportsRoutes } from './interfaces/routes/rapports.routes.js'
 app.get('/health', async () => ({
   status: 'ok',
   project: 'GeoGSC Monitoring',
