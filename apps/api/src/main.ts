@@ -38,7 +38,7 @@ await app.register(missionsRoutes, { prefix: '/fiches/:ficheId/missions' })
 await app.register(controlesRoutes, { prefix: '/fiches/:ficheId/missions/:missionId/controles' })
 await app.register(ouvragesRoutes, { prefix: '/ouvrages' })
 await app.register(rapportsRoutes, { prefix: '/rapports' })
-import { rapportsRoutes } from './interfaces/routes/rapports.routes.js'
+
 app.get('/health', async () => ({
   status: 'ok',
   project: 'GeoGSC Monitoring',
