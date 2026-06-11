@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
+:root {
   --color-geocoding-navy: #0D3B66;
   --color-geocoding-blue: #1B6B93;
   --color-geocoding-teal: #00897B;

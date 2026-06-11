@@ -1,122 +1,142 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+/**
+ * @file App.tsx
+ * @description Point d'entrée de l'application React.
+ *
+ * RESPONSABILITÉS :
+ * → Configure React Query (cache serveur)
+ * → Configure React Router (navigation)
+ * → Configure les toasts (notifications)
+ * → Définit toutes les routes de l'application
+ */
 
-function App() {
-  const [count, setCount] = useState(0)
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'react-hot-toast'
+import { ProtectedRoute, PublicRoute } from './router'
+import { useAuth } from './hooks/useAuth'
+
+// ── IMPORT DES PAGES ──────────────────────────────────────────────
+// Les pages n'existent pas encore — on les créera après
+// Pour l'instant on met des placeholders
+import { LoginPage } from './pages/Auth/LoginPage'
+import { FichesPage } from './pages/Brigade/FichesPage'
+import { FicheDetailPage } from './pages/Brigade/FicheDetailPage'
+import { DashboardPage } from './pages/IGT/DashboardPage'
+import { RapportsPage } from './pages/IGT/RapportsPage'
+import { BrigadesPage } from './pages/Admin/BrigadesPage'
+
+/**
+ * QueryClient — configuration du cache React Query.
+ *
+ * staleTime → durée pendant laquelle les données sont considérées
+ * fraîches. Pendant ce temps, pas de re-fetch automatique.
+ * 5 minutes = bon équilibre entre fraîcheur et performance.
+ *
+ * retry → nombre de tentatives si une requête échoue.
+ * 1 = essaie une fois de plus avant d'afficher l'erreur.
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+      refetchOnWindowFocus: false // ne re-fetch pas au focus de l'onglet
+    }
+  }
+})
+
+/**
+ * AppRoutes — composant séparé pour accéder au contexte auth
+ * après le rendu des providers.
+ */
+function AppRoutes() {
+  const { user, isAuthenticated } = useAuth()
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      {/* ── ROUTE RACINE ── redirige selon l'état ────────────────── */}
+      <Route
+        path="/"
+        element={
+          isAuthenticated && user
+            ? <Navigate to={user.role === 'BRIGADE' ? '/fiches' : '/dashboard'} replace />
+            : <Navigate to="/login" replace />
+        }
+      />
 
-      <div className="ticks"></div>
+      {/* ── ROUTES PUBLIQUES ── non accessibles si connecté ─────── */}
+      <Route element={<PublicRoute />}>
+        <Route path="/login" element={<LoginPage />} />
+      </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {/* ── ROUTES BRIGADE ───────────────────────────────────────── */}
+      <Route element={<ProtectedRoute allowedRoles={['BRIGADE', 'IGT', 'ADMIN']} />}>
+        <Route path="/fiches" element={<FichesPage />} />
+        <Route path="/fiches/:id" element={<FicheDetailPage />} />
+      </Route>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* ── ROUTES IGT / ADMIN ───────────────────────────────────── */}
+      <Route element={<ProtectedRoute allowedRoles={['IGT', 'ADMIN']} />}>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/rapports" element={<RapportsPage />} />
+      </Route>
+
+      {/* ── ROUTES ADMIN UNIQUEMENT ──────────────────────────────── */}
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+        <Route path="/brigades" element={<BrigadesPage />} />
+      </Route>
+
+      {/* ── 404 ── redirige vers la racine ───────────────────────── */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 
-export default App
+export default function App() {
+  return (
+    /**
+     * QueryClientProvider → fournit le cache React Query
+     * à tous les composants enfants.
+     * Doit envelopper toute l'application.
+     */
+    <QueryClientProvider client={queryClient}>
+
+      {/**
+       * BrowserRouter → active la navigation React Router.
+       * Utilise l'API History du navigateur (pas de #hash dans l'URL).
+       */}
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+
+      {/**
+       * Toaster → affiche les notifications toast.
+       * Position bottom-center = visible sans cacher le contenu.
+       * Parfait pour les messages de succès/erreur des actions.
+       */}
+      <Toaster
+        position="bottom-center"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: '12px',
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '14px'
+          },
+          success: {
+            style: {
+              background: '#00897B',
+              color: 'white'
+            }
+          },
+          error: {
+            style: {
+              background: '#DC2626',
+              color: 'white'
+            }
+          }
+        }}
+      />
+    </QueryClientProvider>
+  )
+}

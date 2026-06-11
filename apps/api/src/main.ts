@@ -25,7 +25,20 @@ const app = Fastify({
 })
 
 await app.register(helmet)
-await app.register(cors, { origin: 'http://localhost:5173' })
+
+// ✅ CORS — accepte localhost:5173 ET localhost:5174 (Vite dev server)
+await app.register(cors, {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+})
+
 await app.register(rateLimit, { max: 100, timeWindow: '1 minute' })
 await app.register(jwt, { secret: process.env.JWT_SECRET ?? 'dev-secret' })
 
