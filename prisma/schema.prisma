@@ -70,6 +70,7 @@ model User {
   fichesCreees  FicheJournaliere[] @relation("FicheCreateur")
   fichesValidees FicheJournaliere[] @relation("FicheValidateur")
   refreshTokens RefreshToken[]
+  auditLogs  AuditLog[]
 
   @@map("users")
 }
@@ -186,4 +187,25 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id])
 
   @@map("refresh_tokens")
+  
+
+
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entite    String
+  entiteId  String
+  userId    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([entiteId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

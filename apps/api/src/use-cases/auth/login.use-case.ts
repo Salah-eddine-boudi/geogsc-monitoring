@@ -8,6 +8,7 @@ import bcrypt from 'bcrypt'
 import type { IUserRepository } from '../../domain/repositories/user.repository'
 import type { JwtPayload } from '../../domain/types.js'
 import { UnauthorizedError } from '../../domain/errors.js'
+import { logger, auditLog } from '../../infrastructure/logger.js'
 
 export type LoginInput = {
   email: string
