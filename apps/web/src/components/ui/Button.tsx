@@ -36,11 +36,11 @@ export function Button({
   // ── STYLES DE BASE ──────────────────────────────────────────────
   // Classes communes à tous les boutons
   const base = [
-    'inline-flex items-center justify-center',  // flexbox centré
-    'font-semibold rounded-xl',                  // texte semi-gras, coins arrondis
-    'transition-all duration-200',               // animation fluide au hover
-    'focus:outline-none focus:ring-2 focus:ring-offset-2', // accessibilité clavier
-    'disabled:opacity-50 disabled:cursor-not-allowed'      // état désactivé
+    'inline-flex items-center justify-center',  
+    'font-semibold rounded-xl',                  
+    'transition-all duration-200',              
+    'focus:outline-none focus:ring-2 focus:ring-offset-2', 
+    'disabled:opacity-50 disabled:cursor-not-allowed'      
   ].join(' ')
 
   // ── STYLES PAR VARIANTE ──────────────────────────────────────────
@@ -60,21 +60,20 @@ export function Button({
 
   // ── STYLES PAR TAILLE ────────────────────────────────────────────
   const sizes = {
-    sm: 'h-8 px-3 text-sm gap-1.5',    // compact — dans les tableaux
-    md: 'h-10 px-4 text-sm gap-2',      // normal — formulaires
-    lg: 'h-14 px-6 text-base gap-2 w-full' // grand — mobile terrain
-    // h-14 = 56px — CDC exige des boutons grands pour les gros doigts
+    sm: 'h-8 px-3 text-sm gap-1.5', 
+    md: 'h-10 px-4 text-sm gap-2',     
+    lg: 'h-14 px-6 text-base gap-2 w-full' 
+  
   }
 
   return (
     <button
-      // cn() combine toutes les classes et résout les conflits
+      
       className={cn(base, variants[variant], sizes[size], className)}
 
-      // Désactive si loading OU si disabled est passé en prop
+     
       disabled={loading || disabled}
 
-      // Spread des props natives (onClick, type, form, etc.)
       {...props}
     >
       {/* Spinner affiché pendant le chargement */}

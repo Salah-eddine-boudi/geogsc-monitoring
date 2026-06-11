@@ -16,6 +16,9 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
+import { exportService } from '../../services/export.service'
+import { Download } from 'lucide-react'
 import {
   PieChart, Pie, Cell,
   Tooltip, ResponsiveContainer, Legend
@@ -26,6 +29,7 @@ import {
 } from 'lucide-react'
 import { PageLayout } from '../../components/layout/PageLayout'
 import { Card } from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
 import { SpinnerPage } from '../../components/ui/Spinner'
 import { rapportsService } from '../../services/rapports.service'
 import { fichesService } from '../../services/fiches.service'
@@ -63,6 +67,7 @@ function StatItem({
 // ─── PAGE PRINCIPALE ──────────────────────────────────────────────
 
 export function RapportsPage() {
+  const [exportLoading, setExportLoading] = useState(false)
 
   /**
    * État du sélecteur.
@@ -71,6 +76,22 @@ export function RapportsPage() {
    */
   const [brigadeId, setBrigadeId] = useState('')
   const [periode, setPeriode] = useState(getPeriodeCourante())
+
+  /**
+   * Télécharge le rapport au format Excel.
+   */
+  const handleExport = async () => {
+    if (!brigadeId || !periode) return
+    setExportLoading(true)
+    try {
+      await exportService.exporterExcel(brigadeId, periode)
+      toast.success('Fichier Excel téléchargé ✓')
+    } catch {
+      toast.error("Erreur lors de l'export")
+    } finally {
+      setExportLoading(false)
+    }
+  }
 
   /**
    * Charge la liste des brigades pour le sélecteur.
@@ -218,15 +239,30 @@ export function RapportsPage() {
 
             {/* En-tête rapport */}
             <div className="p-4 bg-[#0D3B66] rounded-2xl text-white">
-              <div className="text-xs text-blue-200 mb-1">
-                GEOCODING × ANEP — Marché 05/2025/ANEP
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs text-blue-200 mb-1">
+                    GEOCODING × ANEP — Marché 05/2025/ANEP
+                  </div>
+                  <h2 className="text-lg font-bold">
+                    Rapport {formatPeriode(rapport.periode)}
+                  </h2>
+                  <p className="text-blue-200 text-sm">
+                    {rapport.brigade.nom} — {rapport.brigade.chef}
+                  </p>
+                </div>
+
+                {/* Bouton export */}
+                <Button
+                  variant="success"
+                  size="md"
+                  loading={exportLoading}
+                  onClick={handleExport}
+                >
+                  <Download size={16} />
+                  Exporter Excel
+                </Button>
               </div>
-              <h2 className="text-lg font-bold">
-                Rapport {formatPeriode(rapport.periode)}
-              </h2>
-              <p className="text-blue-200 text-sm">
-                {rapport.brigade.nom} — {rapport.brigade.chef}
-              </p>
             </div>
 
             {/* KPIs en grille */}
