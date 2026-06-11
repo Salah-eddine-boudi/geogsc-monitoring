@@ -1,17 +1,6 @@
 /**
  * @file exporter-rapport-excel.use-case.ts
  * @description Use-case : génère le fichier Excel récap mensuel.
- *
- * REPRODUIT EXACTEMENT le format des fichiers Excel actuels de GEOCODING :
- * - Ligne 0 : titre
- * - Ligne 3 : nom complet du chef de brigade
- * - Ligne 5 : mois de travail
- * - Lignes 7-8 : en-têtes doubles (Jour/Date/Ouvrages/Partie/Conforme/Fiche/Obs)
- * - Lignes 9+ : une ligne par mission
- *
- * BIBLIOTHÈQUE : ExcelJS
- * Plus puissante qu'xlsx pour la mise en forme :
- * fusions de cellules, couleurs, bordures, largeurs colonnes.
  */
 
 import ExcelJS from 'exceljs'

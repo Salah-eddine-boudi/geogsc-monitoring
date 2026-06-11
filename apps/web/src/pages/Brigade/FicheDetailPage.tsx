@@ -1,18 +1,6 @@
 /**
  * @file FicheDetailPage.tsx
  * @description Page détail d'une fiche journalière.
- *
- * CONTENU :
- * → Informations de la fiche (date, statut, brigade, créateur)
- * → Actions selon statut et rôle (soumettre, valider, rejeter)
- * → Liste des missions avec accordéon
- * → Contrôles imbriqués dans chaque mission
- * → Formulaires d'ajout mission et contrôle
- *
- * RÔLES :
- * BRIGADE → voit ses fiches, ajoute missions/contrôles, soumet
- * IGT     → voit toutes les fiches, valide ou rejette
- * ADMIN   → accès complet
  */
 
 import { useState } from 'react'
@@ -30,20 +18,21 @@ import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
 import { Modal } from '../../components/ui/Modal'
 import { SpinnerPage } from '../../components/ui/Spinner'
+import { MissionFormModal } from '../../components/missions/MissionFormModal'
 import { useAuth } from '../../hooks/useAuth'
 import { fichesService } from '../../services/fiches.service'
 import { missionsService } from '../../services/missions.service'
 import { controlesService } from '../../services/controles.service'
-import { ouvragesService } from '../../services/ouvrages.service'
 import type {
   Mission, Controle, StatutFiche,
   StatutMission, StatutControle, TypeControle
 } from '../../types/api.types'
 
+// ─── FORMATTERS ───────────────────────────────────────────────────
+
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric', month: 'long', year: 'numeric'
 })
-
 const heureFormatter = new Intl.DateTimeFormat('fr-FR', {
   hour: '2-digit', minute: '2-digit'
 })
@@ -58,61 +47,55 @@ function formatHeure(date: string | Date) {
   return Number.isNaN(parsed.getTime()) ? '' : heureFormatter.format(parsed)
 }
 
+// ─── HELPERS STATUTS ──────────────────────────────────────────────
+
 function getStatutFicheLabel(statut: StatutFiche) {
-  switch (statut) {
-    case 'BROUILLON': return 'Brouillon'
-    case 'SOUMISE': return 'Soumise'
-    case 'VALIDEE': return 'Validée'
-    case 'REJETEE': return 'Rejetée'
-    default: return statut
+  const labels: Record<StatutFiche, string> = {
+    BROUILLON: 'Brouillon', SOUMISE: 'Soumise',
+    VALIDEE: 'Validée', REJETEE: 'Rejetée'
   }
+  return labels[statut] ?? statut
 }
 
 function getStatutMissionLabel(statut: StatutMission) {
-  switch (statut) {
-    case 'PLANIFIEE': return 'Planifiée'
-    case 'EN_COURS': return 'En cours'
-    case 'TERMINEE': return 'Terminée'
-    default: return statut
+  const labels: Record<StatutMission, string> = {
+    PLANIFIEE: 'Planifiée', EN_COURS: 'En cours', TERMINEE: 'Terminée'
   }
+  return labels[statut] ?? statut
 }
 
 function getStatutMissionColor(statut: StatutMission) {
-  switch (statut) {
-    case 'PLANIFIEE': return 'bg-yellow-100 text-yellow-800'
-    case 'EN_COURS': return 'bg-blue-100 text-blue-800'
-    case 'TERMINEE': return 'bg-green-100 text-green-800'
-    default: return 'bg-gray-100 text-gray-700'
+  const colors: Record<StatutMission, string> = {
+    PLANIFIEE: 'bg-yellow-100 text-yellow-800',
+    EN_COURS: 'bg-blue-100 text-blue-800',
+    TERMINEE: 'bg-green-100 text-green-800'
   }
+  return colors[statut] ?? 'bg-gray-100 text-gray-700'
 }
 
 function getStatutControleLabel(statut: StatutControle) {
-  switch (statut) {
-    case 'CONFORME': return 'Conforme'
-    case 'NON_CONFORME': return 'Non conforme'
-    case 'RESERVE': return 'Réserve'
-    default: return statut
+  const labels: Record<StatutControle, string> = {
+    CONFORME: 'Conforme', NON_CONFORME: 'Non conforme', RESERVE: 'Réserve'
   }
+  return labels[statut] ?? statut
 }
 
 function getStatutControleColor(statut: StatutControle) {
-  switch (statut) {
-    case 'CONFORME': return 'border-green-500 bg-green-100'
-    case 'RESERVE': return 'border-yellow-500 bg-yellow-100'
-    case 'NON_CONFORME': return 'border-red-500 bg-red-100'
-    default: return 'border-gray-300 bg-gray-100'
+  const colors: Record<StatutControle, string> = {
+    CONFORME: 'border-green-500 bg-green-100',
+    RESERVE: 'border-yellow-500 bg-yellow-100',
+    NON_CONFORME: 'border-red-500 bg-red-100'
   }
+  return colors[statut] ?? 'border-gray-300 bg-gray-100'
 }
 
 function getTypeControleLabel(type: TypeControle) {
-  switch (type) {
-    case 'IMPLANTATION': return 'Implantation'
-    case 'ALTIMETRIE': return 'Altimétrie'
-    case 'VERTICALITY': return 'Verticalité'
-    case 'RECEPTION': return 'Réception'
-    case 'CONTRADICTOIRE': return 'Contradictoire'
-    default: return type
+  const labels: Record<TypeControle, string> = {
+    IMPLANTATION: 'Implantation', ALTIMETRIE: 'Altimétrie',
+    VERTICALITY: 'Verticalité', RECEPTION: 'Réception',
+    CONTRADICTOIRE: 'Contradictoire'
   }
+  return labels[type] ?? type
 }
 
 // ─── BADGE STATUT FICHE ───────────────────────────────────────────
@@ -127,10 +110,6 @@ function StatutFicheBadge({ statut }: { statut: StatutFiche }) {
 
 // ─── MODAL REJETER ────────────────────────────────────────────────
 
-/**
- * Modal pour saisir le motif de rejet.
- * Le motif est obligatoire (min 10 caractères côté backend).
- */
 function RejeterModal({
   isOpen, onClose, ficheId, onSuccess
 }: {
@@ -168,7 +147,6 @@ function RejeterModal({
         <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm text-red-700">
             Expliquez précisément pourquoi cette fiche est rejetée.
-            La brigade recevra ce motif pour corriger.
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -178,11 +156,11 @@ function RejeterModal({
           <textarea
             value={motif}
             onChange={(e) => setMotif(e.target.value)}
-            placeholder="Ex: Mission 2 — écart Z = 45mm dépasse la tolérance de 20mm..."
+            placeholder="Ex: Mission 2 — écart Z = 45mm dépasse la tolérance..."
             rows={4}
             minLength={10}
             required
-            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-sm resize-none focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-sm resize-none focus:outline-none focus:border-red-400"
           />
           <div className={`text-xs text-right ${motif.length < 10 ? 'text-red-400' : 'text-gray-400'}`}>
             {motif.length}/500 (minimum 10)
@@ -194,103 +172,6 @@ function RejeterModal({
           </Button>
           <Button type="submit" variant="danger" size="md" loading={loading} className="flex-1">
             Rejeter
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  )
-}
-
-// ─── MODAL NOUVELLE MISSION ───────────────────────────────────────
-
-function NouvelleMissionModal({
-  isOpen, onClose, ficheId, onSuccess
-}: {
-  isOpen: boolean
-  onClose: () => void
-  ficheId: string
-  onSuccess: () => void
-}) {
-  const [ouvrageId, setOuvrageId] = useState('')
-  const [observations, setObservations] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  /**
-   * useQuery pour charger la liste des ouvrages disponibles.
-   * enabled: isOpen → ne charge que quand la modal est ouverte.
-   * Optimisation : évite un appel inutile quand la modal est fermée.
-   */
-  const { data: ouvrages = [] } = useQuery({
-    queryKey: ['ouvrages'],
-    queryFn: () => ouvragesService.getAll(),
-    enabled: isOpen
-  })
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!ouvrageId) { toast.error('Sélectionnez un ouvrage'); return }
-    setLoading(true)
-    try {
-      await missionsService.create(ficheId, {
-        ouvrageId,
-        observations: observations || undefined
-      })
-      toast.success('Mission ajoutée')
-      onSuccess()
-      onClose()
-      setOuvrageId('')
-      setObservations('')
-    } catch {
-      toast.error('Erreur lors de la création')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Ajouter une mission">
-      <form onSubmit={handleSubmit} className="space-y-4">
-
-        {/* Sélecteur ouvrage */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">
-            Ouvrage <span className="text-red-500">*</span>
-          </label>
-          <select
-            value={ouvrageId}
-            onChange={(e) => setOuvrageId(e.target.value)}
-            required
-            className="w-full h-14 px-4 rounded-xl border-2 border-gray-200 text-base bg-white focus:outline-none focus:border-[#1B6B93] focus:ring-2 focus:ring-[#D9EAF5]"
-          >
-            <option value="">Sélectionner un ouvrage...</option>
-            {ouvrages.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.reference} — {o.designation}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Observations */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-gray-700">
-            Observations <span className="text-gray-400 font-normal">(optionnel)</span>
-          </label>
-          <textarea
-            value={observations}
-            onChange={(e) => setObservations(e.target.value)}
-            placeholder="Conditions, remarques..."
-            rows={2}
-            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-sm resize-none focus:outline-none focus:border-[#1B6B93] focus:ring-2 focus:ring-[#D9EAF5]"
-          />
-        </div>
-
-        <div className="flex gap-3">
-          <Button type="button" variant="secondary" size="md" onClick={onClose} className="flex-1">
-            Annuler
-          </Button>
-          <Button type="submit" variant="primary" size="md" loading={loading} className="flex-1">
-            Ajouter
           </Button>
         </div>
       </form>
@@ -350,8 +231,6 @@ function NouveauControleModal({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Nouveau contrôle" size="lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-
-        {/* Type de contrôle */}
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">
             Type <span className="text-red-500">*</span>
@@ -367,13 +246,10 @@ function NouveauControleModal({
           </select>
         </div>
 
-        {/* Écarts et tolérances en grille */}
         <div className="bg-gray-50 rounded-xl p-3 space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
             Mesures en millimètres
           </p>
-
-          {/* Grille 3 colonnes : axe X, Y, Z */}
           <div className="grid grid-cols-3 gap-2">
             {[
               { axis: 'X', ecart: ecartX, setEcart: setEcartX, tolerance: toleranceX, setTolerance: setToleranceX },
@@ -383,47 +259,34 @@ function NouveauControleModal({
               <div key={axis} className="space-y-1">
                 <p className="text-xs font-semibold text-center text-[#0D3B66]">Axe {axis}</p>
                 <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Écart"
-                  value={ecart}
-                  onChange={(e) => setEcart(e.target.value)}
+                  type="number" step="0.1" placeholder="Écart"
+                  value={ecart} onChange={(e) => setEcart(e.target.value)}
                   className="w-full h-10 px-2 rounded-lg border border-gray-200 text-sm text-center focus:outline-none focus:border-[#1B6B93]"
                 />
                 <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="Tolérance"
-                  value={tolerance}
-                  onChange={(e) => setTolerance(e.target.value)}
+                  type="number" step="0.1" min="0" placeholder="Tolérance"
+                  value={tolerance} onChange={(e) => setTolerance(e.target.value)}
                   className="w-full h-10 px-2 rounded-lg border border-gray-200 text-sm text-center focus:outline-none focus:border-[#1B6B93]"
                 />
               </div>
             ))}
           </div>
-
           <div className="flex justify-between text-xs text-gray-400">
             <span>Ligne 1 : écart mesuré</span>
             <span>Ligne 2 : tolérance admise</span>
           </div>
         </div>
 
-        {/* Note sur le calcul automatique */}
         <div className="flex items-start gap-2 p-3 bg-[#D9EAF5] rounded-xl">
           <AlertTriangle size={16} className="text-[#1B6B93] mt-0.5 flex-shrink-0" />
           <p className="text-xs text-[#1B6B93]">
-            Le statut (CONFORME / RÉSERVE / NON_CONFORME) est calculé
-            automatiquement par le système selon les écarts et tolérances.
+            Le statut est calculé automatiquement selon les écarts et tolérances.
           </p>
         </div>
 
-        {/* Observations */}
         <textarea
-          value={observations}
-          onChange={(e) => setObservations(e.target.value)}
-          placeholder="Observations optionnelles..."
-          rows={2}
+          value={observations} onChange={(e) => setObservations(e.target.value)}
+          placeholder="Observations optionnelles..." rows={2}
           className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-sm resize-none focus:outline-none focus:border-[#1B6B93]"
         />
 
@@ -464,7 +327,6 @@ function ControleItem({ controle }: { controle: Controle }) {
         </Badge>
       </div>
 
-      {/* Écarts et tolérances */}
       {(controle.ecartX !== null || controle.ecartY !== null || controle.ecartZ !== null) && (
         <div className="grid grid-cols-3 gap-2 mt-2">
           {[
@@ -495,11 +357,7 @@ function ControleItem({ controle }: { controle: Controle }) {
 // ─── COMPOSANT MISSION ────────────────────────────────────────────
 
 function MissionItem({
-  mission,
-  ficheId,
-  ficheStatut,
-  isBrigade,
-  onRefresh
+  mission, ficheId, ficheStatut, isBrigade, onRefresh
 }: {
   mission: Mission
   ficheId: string
@@ -507,17 +365,14 @@ function MissionItem({
   isBrigade: boolean
   onRefresh: () => void
 }) {
-  // État accordéon — ouvert/fermé
   const [expanded, setExpanded] = useState(false)
   const [showControleModal, setShowControleModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
+  // ✅ Sécurisation — controles peut être absent de la réponse API
+  const controles = mission.controles ?? []
   const canEdit = isBrigade && ficheStatut === 'BROUILLON'
 
-  /**
-   * Démarre une mission PLANIFIEE → EN_COURS
-   * en envoyant l'heure actuelle comme heureDebut.
-   */
   const handleDemarrer = async () => {
     setActionLoading(true)
     try {
@@ -533,9 +388,6 @@ function MissionItem({
     }
   }
 
-  /**
-   * Termine une mission EN_COURS → TERMINEE
-   */
   const handleTerminer = async () => {
     setActionLoading(true)
     try {
@@ -553,19 +405,15 @@ function MissionItem({
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
-
-      {/* En-tête mission — cliquable pour ouvrir/fermer */}
       <button
         className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 transition-colors text-left"
         onClick={() => setExpanded(!expanded)}
       >
-        {/* Icône accordéon */}
         {expanded
           ? <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />
           : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
         }
 
-        {/* Référence ouvrage */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#0D3B66]">
@@ -580,10 +428,10 @@ function MissionItem({
           </div>
         </div>
 
-        {/* Compteur contrôles + heures */}
         <div className="flex-shrink-0 text-right">
+          {/* ✅ Utilise controles (sécurisé) au lieu de mission.controles */}
           <div className="text-xs text-gray-500">
-            {mission._count.controles} contrôle{mission._count.controles !== 1 ? 's' : ''}
+            {controles.length} contrôle{controles.length !== 1 ? 's' : ''}
           </div>
           {mission.heureDebut && (
             <div className="text-xs text-gray-400 flex items-center gap-1 justify-end">
@@ -595,41 +443,24 @@ function MissionItem({
         </div>
       </button>
 
-      {/* Corps accordéon — visible quand expanded */}
       {expanded && (
         <div className="border-t border-gray-100 p-3 bg-gray-50 space-y-3">
-
-          {/* Actions mission */}
           {canEdit && (
             <div className="flex gap-2">
               {mission.statut === 'PLANIFIEE' && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  loading={actionLoading}
-                  onClick={handleDemarrer}
-                >
+                <Button variant="secondary" size="sm" loading={actionLoading} onClick={handleDemarrer}>
                   <Play size={14} />
                   Démarrer
                 </Button>
               )}
               {mission.statut === 'EN_COURS' && (
-                <Button
-                  variant="success"
-                  size="sm"
-                  loading={actionLoading}
-                  onClick={handleTerminer}
-                >
+                <Button variant="success" size="sm" loading={actionLoading} onClick={handleTerminer}>
                   <CheckCircle size={14} />
                   Terminer
                 </Button>
               )}
               {mission.statut !== 'TERMINEE' && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setShowControleModal(true)}
-                >
+                <Button variant="secondary" size="sm" onClick={() => setShowControleModal(true)}>
                   <Plus size={14} />
                   Contrôle
                 </Button>
@@ -637,14 +468,14 @@ function MissionItem({
             </div>
           )}
 
-          {/* Liste des contrôles */}
-          {mission.controles.length === 0 ? (
+          {/* ✅ Utilise controles (sécurisé) */}
+          {controles.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-2">
               Aucun contrôle pour cette mission
             </p>
           ) : (
             <div className="space-y-2">
-              {mission.controles.map((controle) => (
+              {controles.map((controle) => (
                 <ControleItem key={controle.id} controle={controle} />
               ))}
             </div>
@@ -652,7 +483,6 @@ function MissionItem({
         </div>
       )}
 
-      {/* Modal ajout contrôle */}
       <NouveauControleModal
         isOpen={showControleModal}
         onClose={() => setShowControleModal(false)}
@@ -676,20 +506,12 @@ export function FicheDetailPage() {
   const [showRejetModal, setShowRejetModal] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
-  /**
-   * useQuery pour charger la fiche complète avec missions + contrôles.
-   * La clé ['fiche', id] identifie ce cache précisément.
-   */
   const { data: fiche, isLoading, isError } = useQuery({
     queryKey: ['fiche', id],
     queryFn: () => fichesService.getById(id!),
     enabled: !!id
   })
 
-  /**
-   * Invalide le cache React Query après une action.
-   * Cela force un re-fetch de la fiche et de la liste.
-   */
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['fiche', id] })
     queryClient.invalidateQueries({ queryKey: ['fiches'] })
@@ -748,7 +570,7 @@ export function FicheDetailPage() {
     <PageLayout>
       <div className="space-y-4">
 
-        {/* ── EN-TÊTE ────────────────────────────────────────────── */}
+        {/* EN-TÊTE */}
         <div className="flex items-center gap-3 mb-2">
           <button
             onClick={() => navigate('/fiches')}
@@ -769,55 +591,35 @@ export function FicheDetailPage() {
           </div>
         </div>
 
-        {/* ── MOTIF REJET ────────────────────────────────────────── */}
+        {/* MOTIF REJET */}
         {fiche.statut === 'REJETEE' && fiche.observations && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
             <div className="flex items-center gap-2 mb-1">
               <XCircle size={16} className="text-red-600" />
-              <span className="text-sm font-semibold text-red-700">
-                Motif du rejet
-              </span>
+              <span className="text-sm font-semibold text-red-700">Motif du rejet</span>
             </div>
             <p className="text-sm text-red-600">{fiche.observations}</p>
           </div>
         )}
 
-        {/* ── ACTIONS ────────────────────────────────────────────── */}
+        {/* ACTIONS */}
         {(canSubmit || canValidate) && (
           <Card>
             <Card.Body>
               <div className="flex flex-wrap gap-3">
-
-                {/* Soumettre (Brigade) */}
                 {canSubmit && (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    loading={actionLoading}
-                    onClick={handleSoumettre}
-                  >
+                  <Button variant="primary" size="md" loading={actionLoading} onClick={handleSoumettre}>
                     <Send size={16} />
                     {fiche.statut === 'REJETEE' ? 'Resoumettre' : 'Soumettre pour validation'}
                   </Button>
                 )}
-
-                {/* Valider (IGT) */}
                 {canValidate && (
                   <>
-                    <Button
-                      variant="success"
-                      size="md"
-                      loading={actionLoading}
-                      onClick={handleValider}
-                    >
+                    <Button variant="success" size="md" loading={actionLoading} onClick={handleValider}>
                       <CheckCircle size={16} />
                       Valider
                     </Button>
-                    <Button
-                      variant="danger"
-                      size="md"
-                      onClick={() => setShowRejetModal(true)}
-                    >
+                    <Button variant="danger" size="md" onClick={() => setShowRejetModal(true)}>
                       <XCircle size={16} />
                       Rejeter
                     </Button>
@@ -828,13 +630,11 @@ export function FicheDetailPage() {
           </Card>
         )}
 
-        {/* ── MISSIONS ───────────────────────────────────────────── */}
+        {/* MISSIONS */}
         <Card>
           <Card.Header>
             <div className="flex items-center justify-between">
-              <span>
-                Missions ({fiche.missions.length})
-              </span>
+              <span>Missions ({fiche.missions.length})</span>
               {canEdit && (
                 <button
                   onClick={() => setShowMissionModal(true)}
@@ -849,13 +649,10 @@ export function FicheDetailPage() {
           <Card.Body className="space-y-3">
             {fiche.missions.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-400 text-sm mb-3">
-                  Aucune mission pour cette fiche
-                </p>
+                <p className="text-gray-400 text-sm mb-3">Aucune mission pour cette fiche</p>
                 {canEdit && (
                   <Button
-                    variant="secondary"
-                    size="sm"
+                    variant="secondary" size="sm"
                     onClick={() => setShowMissionModal(true)}
                     className="mx-auto w-auto"
                   >
@@ -880,8 +677,8 @@ export function FicheDetailPage() {
         </Card>
       </div>
 
-      {/* ── MODALS ─────────────────────────────────────────────── */}
-      <NouvelleMissionModal
+      {/* ✅ MissionFormModal remplace NouvelleMissionModal */}
+      <MissionFormModal
         isOpen={showMissionModal}
         onClose={() => setShowMissionModal(false)}
         ficheId={fiche.id}

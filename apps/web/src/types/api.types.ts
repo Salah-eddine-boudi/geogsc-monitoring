@@ -2,127 +2,143 @@
  * @file api.types.ts
  * @description Types TypeScript partagés — forme exacte des données de l'API.
  *
- * POURQUOI CE FICHIER ?
- * ─────────────────────
- * TypeScript est un langage typé. Sans types, on ne sait pas
- * ce que l'API retourne exactement → bugs silencieux.
- *
- * AVEC ce fichier, si l'API retourne { fiche: { id: string } }
- * et qu'on essaie d'accéder à fiche.nom qui n'existe pas →
- * TypeScript nous avertit AVANT l'exécution.
- *
  * RÈGLE :
  * Ces types doivent correspondre exactement aux réponses du backend.
  * Si le backend change, on met à jour ici → erreurs TypeScript
  * partout où le type a changé → on corrige tout d'un coup.
  */
 
-// ─── ENUMS ────────────────────────────────────────────────────────────────────
-// Un type union en TypeScript = liste de valeurs possibles
-// Avantage : si on écrit 'BROUILLON2' par erreur → erreur TypeScript
+// ─── ENUMS EXISTANTS ──────────────────────────────────────────────────────────
 
-/** Rôles possibles d'un utilisateur dans l'application */
 export type Role = 'BRIGADE' | 'IGT' | 'ADMIN'
 
-/**
- * Statuts d'une fiche journalière — machine à états :
- * BROUILLON → SOUMISE → VALIDEE
- *                     ↘ REJETEE → SOUMISE
- */
 export type StatutFiche = 'BROUILLON' | 'SOUMISE' | 'VALIDEE' | 'REJETEE'
 
-/**
- * Statuts d'une mission topographique :
- * PLANIFIEE → EN_COURS → TERMINEE
- */
 export type StatutMission = 'PLANIFIEE' | 'EN_COURS' | 'TERMINEE'
 
-/**
- * Statuts d'un contrôle — calculés automatiquement par le backend
- * selon les écarts et tolérances mesurés
- */
 export type StatutControle = 'CONFORME' | 'NON_CONFORME' | 'RESERVE'
 
-/** Types de contrôles topographiques effectués sur le chantier GSC */
 export type TypeControle =
-  | 'IMPLANTATION'    // position X,Y de l'ouvrage
-  | 'ALTIMETRIE'      // position Z (altitude)
-  | 'VERTICALITY'     // verticalité des poteaux/voiles
-  | 'RECEPTION'       // réception finale
-  | 'CONTRADICTOIRE'  // contrôle contradictoire avec l'entreprise
+  | 'IMPLANTATION'
+  | 'ALTIMETRIE'
+  | 'VERTICALITY'
+  | 'RECEPTION'
+  | 'CONTRADICTOIRE'
 
-/** Types d'ouvrages du Grand Stade de Casablanca */
 export type TypeOuvrage =
-  | 'PLATINE'     // platines de charpente métallique
-  | 'POTEAU'      // poteaux béton
-  | 'VOILE'       // voiles béton
-  | 'GRADIN'      // gradins tribune
-  | 'FONDATION'   // fondations profondes (pieux)
-  | 'VRD'         // voirie et réseaux divers
+  | 'PLATINE'
+  | 'POTEAU'
+  | 'VOILE'
+  | 'GRADIN'
+  | 'FONDATION'
+  | 'VRD'
   | 'AUTRE'
 
-// ─── ENTITÉS ──────────────────────────────────────────────────────────────────
-// Une interface TypeScript décrit la forme exacte d'un objet.
-// Le ? après le nom d'un champ signifie qu'il est optionnel.
+// ─── NOUVEAUX ENUMS CDC ───────────────────────────────────────────────────────
 
 /**
- * Utilisateur connecté.
- * Retourné par POST /auth/login et GET /auth/me
+ * Zones du Grand Stade de Casablanca.
+ * Le stade est divisé en 4 tribunes identifiées A/B/C/D.
  */
+export type ZoneGSC = 'A' | 'B' | 'C' | 'D' | 'HORS_ZONE'
+
+/**
+ * Conditions météorologiques au moment de l'intervention.
+ * Impact direct sur la précision des mesures topographiques.
+ * Ex: brouillard → réfraction atmosphérique → précision réduite.
+ */
+export type ConditionMeteo =
+  | 'BEAU'
+  | 'NUAGEUX'
+  | 'PLUIE'
+  | 'VENT_FORT'
+  | 'BROUILLARD'
+
+/**
+ * Nature de l'intervention topographique.
+ * Détermine les champs obligatoires dans le formulaire.
+ * Ex: IMPLANTATION → écarts X/Y obligatoires
+ *     CONTROLE_ALTIMETRIQUE → écart Z obligatoire
+ */
+export type NatureIntervention =
+  | 'IMPLANTATION'
+  | 'CONTROLE_GEOMETRIQUE'
+  | 'CONTROLE_ALTIMETRIQUE'
+  | 'RECEPTION'
+  | 'CONTRADICTOIRE'
+  | 'RELEVE_TOPOGRAPHIQUE'
+  | 'PIQUETAGE'
+
+/**
+ * Instruments de mesure topographique disponibles sur le chantier GSC.
+ * Trimble SX12 → tachéomètre scanning haute précision (±1mm à 100m)
+ * Leica NA730  → niveau optique pour nivellement (±0.3mm/km)
+ */
+export type AppareilMesure =
+  | 'TRIMBLE_SX12'
+  | 'TRIMBLE_S7'
+  | 'LEICA_TS16'
+  | 'LEICA_NA730'
+  | 'GPS_TRIMBLE'
+  | 'NIVEAU_OPTIQUE'
+  | 'AUTRE'
+
+/**
+ * Stade d'avancement de l'ouvrage au moment du contrôle.
+ * AV = avant, AP = après
+ * Détermine les tolérances applicables selon les plans d'exécution.
+ */
+export type StadeCollage =
+  | 'AVANT_BETONNAGE'
+  | 'APRES_BETONNAGE'
+  | 'AVANT_SOUDURE'
+  | 'APRES_SOUDURE'
+  | 'RECEPTION_FINALE'
+
+/**
+ * Résultat du contrôle topographique.
+ * C = Conforme, NC = Non conforme, R = Réserve
+ */
+export type ResultatControle = 'C' | 'NC' | 'R'
+
+// ─── ENTITÉS ──────────────────────────────────────────────────────────────────
+
 export interface User {
   id: string
   nom: string
   prenom: string
   email: string
   role: Role
-  brigadeId?: string  // présent seulement si role === 'BRIGADE'
+  brigadeId?: string
 }
 
-/**
- * Brigade topographique.
- * Retourné par GET /brigades
- */
 export interface Brigade {
   id: string
-  nom: string       // ex: "Équipe 01"
-  chef: string      // ex: "M. AIT KADIR"
+  nom: string
+  chef: string
   actif: boolean
-  createdAt: string // date ISO 8601
+  createdAt: string
 }
 
-/**
- * Ouvrage de construction GSC.
- * Référentiel des éléments contrôlés topographiquement.
- * Retourné par GET /ouvrages
- */
 export interface Ouvrage {
   id: string
-  reference: string    // ex: "PLT-A-01" — identifiant unique sur le terrain
-  designation: string  // ex: "Platine charpente axe A-01"
+  reference: string
+  designation: string
   type: TypeOuvrage
-  axe: string | null   // ex: "Axe A" — null si non applicable
-  niveau: string | null // ex: "R+1" — null si non applicable
+  axe: string | null
+  niveau: string | null
   actif: boolean
 }
 
-/**
- * Contrôle topographique — mesure d'écart sur un ouvrage.
- * Le statut est calculé AUTOMATIQUEMENT par le backend.
- * Jamais envoyé par le frontend.
- *
- * Retourné dans les missions via GET /fiches/:id
- */
 export interface Controle {
   id: string
   type: TypeControle
-  statut: StatutControle  // calculé auto : CONFORME/RESERVE/NON_CONFORME
+  statut: StatutControle
 
-  // Écarts mesurés en millimètres (null si non mesuré)
   ecartX: number | null
   ecartY: number | null
   ecartZ: number | null
 
-  // Tolérances admises en millimètres (depuis les plans d'exécution)
   toleranceX: number | null
   toleranceY: number | null
   toleranceZ: number | null
@@ -133,21 +149,41 @@ export interface Controle {
 }
 
 /**
- * Mission topographique — intervention sur un ouvrage dans une journée.
- * Appartient à une fiche journalière.
+ * Mission topographique — interface complète CDC.
  *
- * Retourné dans les fiches via GET /fiches/:id
+ * Contient tous les champs du formulaire terrain :
+ * localisation (zone/axe/fil/niveau), intervention,
+ * appareil utilisé, résultat et conditions météo.
  */
 export interface Mission {
   id: string
   statut: StatutMission
-  heureDebut: string | null  // ISO 8601, null si pas encore démarrée
-  heureFin: string | null    // ISO 8601, null si pas encore terminée
-  observations: string | null
-  ficheId: string
-  ouvrageId: string
+  heureDebut: string | null
+  heureFin:   string | null
 
-  // Relation ouvrage — incluse dans la réponse API
+  // ── Localisation ──────────────────────────────────────────────
+  // Permet de situer précisément l'ouvrage sur le plan du stade
+  zone:          ZoneGSC | null        // Tribune A/B/C/D
+  axe:           string | null          // ex: "Axe D03/D05"
+  fil:           string | null          // ex: "fil M/N"
+  niveau:        string | null          // ex: "R+1", "SSL"
+  partieOuvrage: string | null          // ex: "Crémaillère intermédiaire"
+
+  // ── Intervention ──────────────────────────────────────────────
+  // Décrit le travail topographique effectué
+  nature:         NatureIntervention | null
+  appareil:       AppareilMesure | null
+  travailRealise: string | null          // description libre
+  stadeCollage:   StadeCollage | null    // avancement de l'ouvrage
+
+  // ── Résultat ──────────────────────────────────────────────────
+  conditionMeteo: ConditionMeteo | null
+  resultat:       ResultatControle | null  // C / NC / R
+  observations:   string | null
+
+  // ── Relations ─────────────────────────────────────────────────
+  ficheId:   string
+  ouvrageId: string
   ouvrage: {
     id: string
     reference: string
@@ -156,30 +192,19 @@ export interface Mission {
     axe: string | null
     niveau: string | null
   }
-
-  // Contrôles effectués dans cette mission
   controles: Controle[]
-
-  // Compteur — plus efficace que controles.length
   _count: { controles: number }
 }
 
-/**
- * Fiche journalière — document central du contrôle GSC.
- * Créée par une brigade, validée par l'IGT.
- *
- * Retourné par GET /fiches/:id
- */
 export interface Fiche {
   id: string
-  date: string           // ISO 8601
+  date: string
   statut: StatutFiche
   observations: string | null
   brigadeId: string
   createurId: string
-  validateurId: string | null  // null si pas encore validée
+  validateurId: string | null
 
-  // Relations incluses dans la réponse API
   brigade: {
     id: string
     nom: string
@@ -197,35 +222,25 @@ export interface Fiche {
   } | null
 
   missions: Mission[]
-
-  // Compteur rapide sans charger toutes les missions
   _count: { missions: number }
 }
 
-/**
- * Statistiques d'un rapport mensuel.
- * Calculées côté serveur à la demande.
- *
- * Retourné par GET /rapports/:brigadeId/:periode
- */
 export interface RapportStats {
-  periode: string  // format "YYYY-MM" ex: "2026-05"
+  periode: string
   brigade: {
     id: string
     nom: string
     chef: string
   }
 
-  // Statistiques calculées
   nbFichesValidees: number
   nbMissions: number
   nbControles: number
   nbConformes: number
   nbReserves: number
   nbNonConformes: number
-  tauxConformite: number  // pourcentage 0-100, arrondi 1 décimale
+  tauxConformite: number
 
-  // Ouvrages avec des non-conformités — triés par nb décroissant
   ouvragesNonConformes: {
     reference: string
     designation: string
@@ -234,52 +249,68 @@ export interface RapportStats {
 }
 
 // ─── RÉPONSES API ─────────────────────────────────────────────────────────────
-// Ces interfaces décrivent la forme exacte du JSON retourné par le backend.
-// Le champ success: true/false est toujours présent.
 
-/**
- * Réponse d'erreur standard de l'API.
- * Retournée quand success: false
- */
 export interface ApiError {
   success: false
-  code: string      // ex: 'NOT_FOUND', 'VALIDATION_ERROR', 'UNAUTHORIZED'
-  message: string   // message lisible par l'humain
-  errors?: {        // détails des erreurs de validation (optionnel)
+  code: string
+  message: string
+  errors?: {
     field: string
     message: string
   }[]
 }
 
-/**
- * Réponse de POST /auth/login
- */
 export interface LoginResponse {
   success: true
-  token: string   // JWT à stocker dans localStorage
+  token: string
   user: User
 }
 
-/**
- * Réponse de GET /fiches
- * Liste paginée des fiches journalières
- */
 export interface FichesResponse {
   success: true
   data: Fiche[]
   pagination: {
-    total: number   // nombre total de fiches (toutes pages confondues)
-    page: number    // page courante (commence à 1)
-    limit: number   // nombre de fiches par page
+    total: number
+    page: number
+    limit: number
   }
   totalPages: number
 }
 
-/**
- * Informations de pagination — réutilisées dans plusieurs réponses
- */
 export interface Pagination {
   total: number
   page: number
   limit: number
+}
+
+// ─── TYPES FORMULAIRE ─────────────────────────────────────────────────────────
+
+/**
+ * Données du formulaire de création/modification de mission.
+ * Utilisé par react-hook-form dans MissionFormModal.
+ *
+ * DIFFÉRENCE AVEC Mission :
+ * Mission = données retournées par l'API (id, statut, createdAt...)
+ * MissionFormData = données saisies par l'utilisateur (sans id ni statut)
+ */
+export interface MissionFormData {
+  ouvrageId: string
+
+  // Localisation
+  zone?:          ZoneGSC
+  axe?:           string
+  fil?:           string
+  niveau?:        string
+  partieOuvrage?: string
+
+  // Intervention
+  nature?:         NatureIntervention
+  appareil?:       AppareilMesure
+  travailRealise?: string
+  stadeCollage?:   StadeCollage
+
+  // Résultat
+  conditionMeteo?: ConditionMeteo
+  resultat?:       ResultatControle
+  observations?:   string
 }

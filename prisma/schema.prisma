@@ -15,6 +15,50 @@ enum Role {
   ADMIN
 }
 
+enum ZoneGSC {
+  A
+  B
+  C
+  D
+  HORS_ZONE
+}
+
+enum ConditionMeteo {
+  BEAU
+  NUAGEUX
+  PLUIE
+  VENT_FORT
+  BROUILLARD
+}
+
+enum NatureIntervention {
+  IMPLANTATION
+  CONTROLE_GEOMETRIQUE
+  CONTROLE_ALTIMETRIQUE
+  RECEPTION
+  CONTRADICTOIRE
+  RELEVE_TOPOGRAPHIQUE
+  PIQUETAGE
+}
+
+enum StadeCollage {
+  AVANT_BETONNAGE
+  APRES_BETONNAGE
+  AVANT_SOUDURE
+  APRES_SOUDURE
+  RECEPTION_FINALE
+}
+
+enum AppareilMesure {
+  TRIMBLE_SX12
+  TRIMBLE_S7
+  LEICA_TS16
+  LEICA_NA730
+  GPS_TRIMBLE
+  NIVEAU_OPTIQUE
+  AUTRE
+} 
+
 enum StatutFiche {
   BROUILLON
   SOUMISE
@@ -118,13 +162,26 @@ model FicheJournaliere {
 // ─── MISSION ─────────────────────────────────────────────────────────────────
 
 model Mission {
-  id          String        @id @default(cuid())
-  statut      StatutMission @default(PLANIFIEE)
-  heureDebut  DateTime?
-  heureFin    DateTime?
-  observations String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  statut           StatutMission @default(PLANIFIEE)
+  heureDebut       DateTime?
+  heureFin         DateTime?
+  observations     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // ── Champs CDC manquants ──────────────────────────────────────
+  zone             ZoneGSC?              // Zone A/B/C/D du stade
+  axe              String?               // ex: "Axe D03/D05"
+  fil              String?               // ex: "fil M/N"
+  niveau           String?               // ex: "R+1", "SSL"
+  partieOuvrage    String?               // description libre
+  nature           NatureIntervention?   // type d'intervention
+  appareil         AppareilMesure?       // instrument utilisé
+  travailRealise   String?               // description travail
+  stadeCollage     StadeCollage?         // stade de l'ouvrage
+  conditionMeteo   ConditionMeteo?       // météo du jour
+  resultat         String?               // "C" ou "NC"
 
   fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
   ficheId     String
@@ -136,7 +193,6 @@ model Mission {
 
   @@map("missions")
 }
-
 // ─── OUVRAGE ─────────────────────────────────────────────────────────────────
 
 model Ouvrage {
