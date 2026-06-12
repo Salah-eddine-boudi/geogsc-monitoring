@@ -313,4 +313,57 @@ export interface MissionFormData {
   conditionMeteo?: ConditionMeteo
   resultat?:       ResultatControle
   observations?:   string
+} 
+
+// ─── TYPES CP ─────────────────────────────────────────────────────────────────
+
+export type StatutCP = 'BROUILLON' | 'SOUMIS' | 'VALIDE'
+
+export type TypeEvenement =
+  | 'VISITE_CHANTIER'
+  | 'REUNION'
+  | 'INCIDENT'
+  | 'CONSTAT'
+  | 'AUTRE'
+
+export type CriticiteVigilance = 'HAUTE' | 'MOYENNE' | 'FAIBLE'
+
+export interface EvenementCP {
+  id: string
+  date: string
+  type: TypeEvenement
+  description: string
+  participants: string | null
+  lieu: string | null
+  cpId: string
+  createdAt: string
+}
+
+export interface PointVigilanceCP {
+  id: string
+  criticite: CriticiteVigilance
+  description: string
+  action: string | null
+  responsable: string | null
+  echeance: string | null
+  resolu: boolean
+  cpId: string
+  createdAt: string
+}
+
+export interface CompteRenduCP {
+  id: string
+  semaine: number
+  annee: number
+  statut: StatutCP
+  observations: string | null
+  brigadeId: string
+  createurId: string
+  brigade: { id: string; nom: string; chef: string }
+  createur: { id: string; nom: string; prenom: string }
+  evenements: EvenementCP[]
+  pointsVigilance: PointVigilanceCP[]
+  _count?: { evenements: number; pointsVigilance: number }
+  createdAt: string
+  updatedAt: string
 }

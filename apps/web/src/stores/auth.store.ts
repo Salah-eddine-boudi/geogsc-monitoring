@@ -2,9 +2,10 @@
  * @file auth.store.ts
  * @description Store Zustand — état global d'authentification.
  *
- * Persiste dans localStorage :
- * - token JWT
- * - user (nom, rôle, brigadeId)
+ * CORRECTION : ajout de isHydrated pour éviter la boucle de redirection.
+ * Zustand persist est asynchrone — au premier render, isAuthenticated = false
+ * même si le token est dans localStorage. isHydrated = true signale que
+ * localStorage a été lu et que l'état est fiable.
  */
 
 import { create } from 'zustand'
@@ -16,6 +17,7 @@ interface AuthState {
   user: User | null
   token: string | null
   isAuthenticated: boolean
+  isHydrated: boolean        // true une fois localStorage lu par Zustand
 
   login: (email: string, password: string) => Promise<void>
   logout: () => void
@@ -28,6 +30,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      isHydrated: false,     // false au départ — devient true après réhydration
 
       login: async (email, password) => {
         const response = await authService.login(email, password)
@@ -49,11 +52,19 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+
+      // isHydrated n'est PAS persisté — doit toujours démarrer à false
       partialize: (state) => ({
         user: state.user,
         token: state.token,
         isAuthenticated: state.isAuthenticated
-      })
+      }),
+
+      // Appelé par Zustand quand il finit de lire localStorage
+      // → on passe isHydrated à true → les routes peuvent maintenant décider
+      onRehydrateStorage: () => (state) => {
+        if (state) state.isHydrated = true
+      }
     }
   )
 )

@@ -13,20 +13,10 @@ export function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
-  /**
-   * useState → hook React pour gérer un état local au composant.
-   * isOnline → true si connecté à internet, false sinon.
-   * navigator.onLine → API navigateur qui indique l'état réseau.
-   */
+  
   const [isOnline, setIsOnline] = useState(navigator.onLine)
 
-  /**
-   * useEffect → s'exécute après le rendu du composant.
-   * Ici : écoute les événements réseau du navigateur.
-   *
-   * Le tableau [] en deuxième argument = dépendances.
-   * [] vide = s'exécute UNE SEULE FOIS au montage du composant.
-   */
+ 
   useEffect(() => {
     // Fonctions qui mettent à jour l'état réseau
     const handleOnline = () => setIsOnline(true)
@@ -42,17 +32,14 @@ export function Header() {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, []) // [] = pas de dépendances = exécuté une seule fois
+  }, []) 
 
   const handleLogout = () => {
     logout()
     navigate('/login')
   }
 
-  /**
-   * Traduit le rôle technique en label lisible.
-   * Affiché sous le nom de l'utilisateur.
-   */
+
   const getRoleLabel = () => {
     switch (user?.role) {
       case 'BRIGADE': return 'Brigade terrain'

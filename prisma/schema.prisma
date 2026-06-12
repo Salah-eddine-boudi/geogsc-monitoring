@@ -14,7 +14,6 @@ enum Role {
   IGT
   ADMIN
 }
-
 enum ZoneGSC {
   A
   B
@@ -57,7 +56,7 @@ enum AppareilMesure {
   GPS_TRIMBLE
   NIVEAU_OPTIQUE
   AUTRE
-} 
+}
 
 enum StatutFiche {
   BROUILLON
@@ -115,9 +114,95 @@ model User {
   fichesValidees FicheJournaliere[] @relation("FicheValidateur")
   refreshTokens RefreshToken[]
   auditLogs  AuditLog[]
+  cpCrees CompteRenduCP[] @relation("CPCreateur")
 
   @@map("users")
 }
+
+
+
+// ─── COMPTE RENDU CP ─────────────────────────────────────────────
+
+enum StatutCP {
+  BROUILLON
+  SOUMIS
+  VALIDE
+}
+
+enum TypeEvenement {
+  VISITE_CHANTIER
+  REUNION
+  INCIDENT
+  CONSTAT
+  AUTRE
+}
+
+enum CriticiteVigilance {
+  HAUTE
+  MOYENNE
+  FAIBLE
+}
+
+model CompteRenduCP {
+  id          String    @id @default(cuid())
+  semaine     Int       // numéro de semaine ISO ex: 23
+  annee       Int       // ex: 2026
+  statut      StatutCP  @default(BROUILLON)
+  observations String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  brigade     Brigade   @relation(fields: [brigadeId], references: [id])
+  brigadeId   String
+
+  createur    User      @relation("CPCreateur", fields: [createurId], references: [id])
+  createurId  String
+
+  evenements  EvenementCP[]
+  pointsVigilance PointVigilanceCP[]
+
+  @@unique([brigadeId, semaine, annee])
+  @@map("comptes_rendus_cp")
+}
+
+model EvenementCP {
+  id          String         @id @default(cuid())
+  date        DateTime
+  type        TypeEvenement
+  description String
+  participants String?
+  lieu        String?
+  createdAt   DateTime       @default(now())
+
+  cp          CompteRenduCP  @relation(fields: [cpId], references: [id])
+  cpId        String
+
+  @@map("evenements_cp")
+}
+
+model PointVigilanceCP {
+  id          String              @id @default(cuid())
+  criticite   CriticiteVigilance
+  description String
+  action      String?
+  responsable String?
+  echeance    DateTime?
+  resolu      Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+
+  cp          CompteRenduCP       @relation(fields: [cpId], references: [id])
+  cpId        String
+
+  @@map("points_vigilance_cp")
+}
+
+
+
+
+
+
+
+
 
 // ─── BRIGADE ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +215,7 @@ model Brigade {
 
   membres   User[]
   fiches    FicheJournaliere[]
+  comptesRendusCP CompteRenduCP[]
 
   @@map("brigades")
 }
@@ -159,29 +245,27 @@ model FicheJournaliere {
   @@map("fiches_journalieres")
 }
 
-// ─── MISSION ─────────────────────────────────────────────────────────────────
-
 model Mission {
-  id               String        @id @default(cuid())
-  statut           StatutMission @default(PLANIFIEE)
-  heureDebut       DateTime?
-  heureFin         DateTime?
-  observations     String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  statut      StatutMission @default(PLANIFIEE)
+  heureDebut  DateTime?
+  heureFin    DateTime?
+  observations String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  // ── Champs CDC manquants ──────────────────────────────────────
-  zone             ZoneGSC?              // Zone A/B/C/D du stade
-  axe              String?               // ex: "Axe D03/D05"
-  fil              String?               // ex: "fil M/N"
-  niveau           String?               // ex: "R+1", "SSL"
-  partieOuvrage    String?               // description libre
-  nature           NatureIntervention?   // type d'intervention
-  appareil         AppareilMesure?       // instrument utilisé
-  travailRealise   String?               // description travail
-  stadeCollage     StadeCollage?         // stade de l'ouvrage
-  conditionMeteo   ConditionMeteo?       // météo du jour
-  resultat         String?               // "C" ou "NC"
+  // ── Champs CDC ─────────────────────────────────
+  zone             ZoneGSC?
+  axe              String?
+  fil              String?
+  niveau           String?
+  partieOuvrage    String?
+  nature           NatureIntervention?
+  appareil         AppareilMesure?
+  travailRealise   String?
+  stadeCollage     StadeCollage?
+  conditionMeteo   ConditionMeteo?
+  resultat         String?
 
   fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
   ficheId     String
@@ -193,6 +277,7 @@ model Mission {
 
   @@map("missions")
 }
+
 // ─── OUVRAGE ─────────────────────────────────────────────────────────────────
 
 model Ouvrage {

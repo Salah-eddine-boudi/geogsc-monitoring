@@ -6,16 +6,7 @@
  * → Carte fiche journalière dans la liste
  * → Carte KPI dans le dashboard IGT
  * → Formulaire de login
- * → Section rapport mensuel
- *
- * USAGE :
- * <Card>
- *   <Card.Header>Titre</Card.Header>
- *   <Card.Body>Contenu</Card.Body>
- * </Card>
- *
- * Ou simplement :
- * <Card className="p-4">Contenu libre</Card>
+ * → Section rapport mensuel    
  */
 
 import React from 'react'

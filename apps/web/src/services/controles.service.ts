@@ -40,4 +40,4 @@ export const controlesService = {
   async delete(ficheId: string, missionId: string, controleId: string): Promise<void> {
     await api.delete(`/fiches/${ficheId}/missions/${missionId}/controles/${controleId}`)
   }
-}
+}   
