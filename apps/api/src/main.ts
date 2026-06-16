@@ -15,6 +15,7 @@
   import { exportRoutes } from'./interfaces/routes/export.routes.js'
   import { cpRoutes } from './interfaces/routes/cp.routes.js'
   import { dashboardRoutes } from './interfaces/routes/dashboard.routes.js'
+ import { auditLogRoutes } from './interfaces/routes/audit-log.routes.js'
 
   dotenv.config()
 
@@ -56,7 +57,9 @@
   await app.register(rapportsRoutes, { prefix: '/rapports' })
   await app.register(exportRoutes, { prefix: '/export' })
 await app.register(cpRoutes, { prefix: '/cp' })
-await app.register(dashboardRoutes, { prefix: '/dashboard' }) 
+await app.register(dashboardRoutes, { prefix: '/dashboard' })
+await app.register(auditLogRoutes, { prefix: '/audit-logs' })
+
   app.get('/health', async () => ({
     status: 'ok',
     project: 'GeoGSC Monitoring',

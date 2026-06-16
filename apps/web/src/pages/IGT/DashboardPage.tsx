@@ -1,18 +1,6 @@
 /**
  * @file DashboardPage.tsx
  * @description Dashboard IGT — vue globale du chantier GSC.
- *
- * CONTENU (CDC §3.7.1) :
- * → KPIs : fiches, missions, conformes, NC, taux — par mois
- * → LineChart : évolution journalière volume + taux conformité
- * → BarChart empilé : répartition par type d'ouvrage
- * → BarChart horizontal : top natures d'intervention
- * → BarChart groupé : comparaison inter-brigades
- * → Tableau NC récentes : cliquable → détail fiche
- * → Fiches soumises en attente de validation
- *
- * UN SEUL appel API → GET /dashboard/stats?periode=YYYY-MM
- * (remplace les 3 appels séparés de l'ancienne version)
  */
 
 import { useState } from 'react'
@@ -27,32 +15,27 @@ import {
   FileText, CheckCircle, Clock, TrendingUp,
   AlertTriangle, BarChart3, ChevronRight, Users
 } from 'lucide-react'
-import { PageLayout }   from '../../components/layout/PageLayout'
-import { Badge }        from '../../components/ui/Badge'
-import { Card }         from '../../components/ui/Card'
-import { Button }       from '../../components/ui/Button'
-import { SpinnerPage }  from '../../components/ui/Spinner'
-import { dashboardService } from '../../services/dashboard.service'
+import { PageLayout }        from '../../components/layout/PageLayout'
+import { Badge }             from '../../components/ui/Badge'
+import { Card }              from '../../components/ui/Card'
+import { Button }            from '../../components/ui/Button'
+import { SpinnerPage }       from '../../components/ui/Spinner'
+import { dashboardService }  from '../../services/dashboard.service'
+import { useAuthStore }      from '../../stores/auth.store'
+import type { DashboardStats } from '../../types/dashboard.types'
 
 // ─── CHARTE COULEURS GEOCODING ────────────────────────────────────
-// Définies ici pour être réutilisées dans tous les graphiques Recharts.
-// Recharts n'utilise pas TailwindCSS → couleurs hex directes obligatoires.
-
 const COLORS = {
-  navy:        '#0D3B66',  // Header, titres, boutons primaires
-  blue:        '#1B6B93',  // Liens, accents
-  teal:        '#00897B',  // CONFORME, succès
-  light:       '#D9EAF5',  // Fonds cartes secondaires
-  rouge:       '#DC2626',  // NON_CONFORME, erreurs
-  orange:      '#D97706',  // RESERVE, avertissements
-  gris:        '#6B7280',  // Neutre
+  navy:   '#0D3B66',
+  blue:   '#1B6B93',
+  teal:   '#00897B',
+  rouge:  '#DC2626',
+  orange: '#D97706',
+  gris:   '#6B7280',
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────
 
-/**
- * Formate "2026-06" → "Juin 2026" pour l'affichage du sélecteur.
- */
 function formatPeriode(periode: string): string {
   const [annee, mois] = periode.split('-')
   const date = new Date(Number(annee), Number(mois) - 1, 1)
@@ -60,33 +43,61 @@ function formatPeriode(periode: string): string {
 }
 
 /**
- * Génère la liste des 12 derniers mois pour le sélecteur.
- * Format : [{ value: "2026-06", label: "Juin 2026" }, ...]
+ * getDerniersMois — génère la liste des N derniers mois.
+ *
+ * CORRECTION DU BUG :
+ * Avant : on utilisait toISOString() qui convertit en UTC.
+ * Au Maroc (UTC+1/+2), minuit local = 22h ou 23h UTC la veille.
+ * Résultat : "2026-03-01T00:00:00+01:00" → "2026-02-28T23:00:00Z"
+ * → slice(0,7) donnait "2026-02" au lieu de "2026-03" → doublons !
+ *
+ * Maintenant : on utilise getFullYear() et getMonth() qui
+ * retournent l'heure LOCALE → pas de décalage → pas de doublons.
+ *
+ * padStart(2, '0') : ajoute un zéro si le mois est < 10
+ * ex: 3 → "03", 10 → "10"
+ *
+ * Set<string> : structure de données qui n'accepte pas les doublons.
+ * seen.has(value) → vérifie si la valeur existe déjà
+ * seen.add(value) → l'ajoute pour les vérifications suivantes
  */
 function getDerniersMois(n = 12) {
   const mois = []
+  const seen = new Set<string>()
   const now = new Date()
+
   for (let i = 0; i < n; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const value = d.toISOString().slice(0, 7)
-    mois.push({ value, label: formatPeriode(value) })
+
+    // ✅ Heure locale — pas de conversion UTC
+    const year  = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const value = `${year}-${month}`
+
+    // N'ajoute que si pas déjà présent
+    if (!seen.has(value)) {
+      seen.add(value)
+      mois.push({ value, label: formatPeriode(value) })
+    }
   }
   return mois
 }
 
 /**
- * Formate "CONTROLE_COFFRAGE" → "Contrôle coffrage" pour les labels.
+ * getCurrentPeriode — retourne le mois courant en format "YYYY-MM"
+ * sans utiliser toISOString() pour éviter le même bug UTC.
  */
-function formatNature(nature: string): string {
-  return nature
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/^./, c => c.toUpperCase())
+function getCurrentPeriode(): string {
+  const now = new Date()
+  const year  = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
 }
 
-/**
- * Formate "POTEAU_CREMAILLERE_AV_BETONNAGE" → "Poteau crémaillère" (abrégé).
- */
+function formatNature(nature: string): string {
+  return nature.toLowerCase().replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())
+}
+
 function formatOuvrage(type: string): string {
   const map: Record<string, string> = {
     POTEAU: 'Poteau',
@@ -104,47 +115,30 @@ function formatOuvrage(type: string): string {
     ASSAINISSEMENT: 'Assainissement',
     PLATINE: 'Platine',
     AUTRE: 'Autre',
+    GRADIN: 'Gradin',
+    FONDATION: 'Fondation',
+    VRD: 'VRD',
   }
   return map[type] ?? type
 }
 
-// ─── COMPOSANT KPI CARD ───────────────────────────────────────────
+// ─── KPI CARD ─────────────────────────────────────────────────────
 
-/**
- * KpiCard — carte indicateur clé.
- * trend : variation vs mois précédent (optionnel, ex: "+5")
- */
-function KpiCard({
-  icon: Icon, label, value, color, subtitle, trend
-}: {
+function KpiCard({ icon: Icon, label, value, color, subtitle }: {
   icon: React.ElementType
   label: string
   value: string | number
   color: string
   subtitle?: string
-  trend?: string
 }) {
   return (
     <Card>
       <Card.Body>
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            <div className={`text-3xl font-bold ${color} mb-1`}>
-              {value}
-            </div>
-            <div className="text-sm font-medium text-gray-700 truncate">
-              {label}
-            </div>
-            {subtitle && (
-              <div className="text-xs text-gray-400 mt-0.5">{subtitle}</div>
-            )}
-            {trend && (
-              <div className={`text-xs font-medium mt-1 ${
-                trend.startsWith('+') ? 'text-[#00897B]' : 'text-[#DC2626]'
-              }`}>
-                {trend} vs mois préc.
-              </div>
-            )}
+            <div className={`text-3xl font-bold ${color} mb-1`}>{value}</div>
+            <div className="text-sm font-medium text-gray-700 truncate">{label}</div>
+            {subtitle && <div className="text-xs text-gray-400 mt-0.5">{subtitle}</div>}
           </div>
           <div className={`p-3 rounded-xl bg-opacity-10 ${color.replace('text-', 'bg-')}`}>
             <Icon size={22} className={color} />
@@ -155,12 +149,8 @@ function KpiCard({
   )
 }
 
-// ─── TOOLTIP PERSONNALISÉ RECHARTS ────────────────────────────────
+// ─── TOOLTIP RECHARTS ─────────────────────────────────────────────
 
-/**
- * Tooltip Recharts avec le style GEOCODING.
- * Utilisé sur tous les graphiques pour homogénéité.
- */
 function GeoTooltip({ active, payload, label }: {
   active?: boolean
   payload?: { name: string; value: number; color: string }[]
@@ -185,29 +175,21 @@ function GeoTooltip({ active, payload, label }: {
 
 export function DashboardPage() {
   const navigate = useNavigate()
-
-  // Période sélectionnée — mois courant par défaut
-  const [periode, setPeriode] = useState<string>(
-    new Date().toISOString().slice(0, 7)
-  )
-
-  // Brigade sélectionnée — undefined = toutes les brigades
-  const [brigadeIdFiltre, setBrigadeIdFiltre] = useState<string | undefined>()
-
-  const moisDisponibles = getDerniersMois(12)
+  const { isAuthenticated } = useAuthStore()
 
   /**
-   * Un seul appel API → toutes les données du dashboard.
-   * React Query met en cache → re-fetch uniquement si période change.
-   * queryKey contient période + brigade → invalidation automatique au changement.
+   * getCurrentPeriode() au lieu de new Date().toISOString().slice(0,7)
+   * pour éviter le bug UTC sur le mois courant.
    */
+  const [periode, setPeriode] = useState<string>(getCurrentPeriode())
+  const [brigadeIdFiltre, setBrigadeIdFiltre] = useState<string | undefined>()
+  const moisDisponibles = getDerniersMois(12)
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard', 'stats', periode, brigadeIdFiltre],
-    queryFn: () => dashboardService.getStats({
-      periode,
-      brigadeId: brigadeIdFiltre
-    }),
-    staleTime: 2 * 60 * 1000,  // 2 min — dashboard : refresh modéré suffisant
+    queryFn: () => dashboardService.getStats({ periode, brigadeId: brigadeIdFiltre }),
+    staleTime: 2 * 60 * 1000,
+    enabled: isAuthenticated,
   })
 
   if (isLoading) return <SpinnerPage />
@@ -222,28 +204,24 @@ export function DashboardPage() {
     )
   }
 
-  const stats = data!
+  const stats = data as DashboardStats
 
-  // Données pour le donut de conformité
   const pieData = [
-    { name: 'Conformes',      value: stats.kpis.conformes,    color: COLORS.teal   },
-    { name: 'Réserves',       value: stats.kpis.reserves,     color: COLORS.orange },
-    { name: 'Non conformes',  value: stats.kpis.nonConformes, color: COLORS.rouge  },
-  ].filter(d => d.value > 0)  // masquer les segments à 0
+    { name: 'Conformes',     value: stats.kpis.conformes,    color: COLORS.teal   },
+    { name: 'Réserves',      value: stats.kpis.reserves,     color: COLORS.orange },
+    { name: 'Non conformes', value: stats.kpis.nonConformes, color: COLORS.rouge  },
+  ].filter(d => d.value > 0)
 
-  // Données du LineChart — format "06/01" pour les labels courts
   const evolutionData = stats.evolutionJournaliere.map(d => ({
     ...d,
-    dateLabel: d.date.slice(5).replace('-', '/'),  // "2026-06-01" → "06/01"
+    dateLabel: d.date.slice(5).replace('-', '/'),
   }))
 
-  // Données BarChart ouvrage — noms abrégés pour les labels
   const ouvrageData = stats.repartitionOuvrage.map(d => ({
     ...d,
     typeLabel: formatOuvrage(d.type),
   }))
 
-  // Données BarChart nature — noms formatés
   const natureData = stats.repartitionNature.map(d => ({
     ...d,
     natureLabel: formatNature(d.nature),
@@ -253,11 +231,7 @@ export function DashboardPage() {
     <PageLayout
       title="Dashboard"
       action={
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => navigate('/rapports')}
-        >
+        <Button variant="secondary" size="sm" onClick={() => navigate('/rapports')}>
           <BarChart3 size={16} />
           <span className="hidden sm:inline">Rapports</span>
         </Button>
@@ -265,21 +239,20 @@ export function DashboardPage() {
     >
       <div className="space-y-6">
 
-        {/* ── FILTRES PÉRIODE + BRIGADE ────────────────────────── */}
+        {/* ── FILTRES ───────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-3 items-center">
-
-          {/* Sélecteur de mois */}
           <select
             value={periode}
             onChange={e => setPeriode(e.target.value)}
             className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1B6B93]"
           >
-            {moisDisponibles.map(m => (
-              <option key={m.value} value={m.value}>{m.label}</option>
+            {moisDisponibles.map((m, index) => (
+              <option key={`${m.value}-${index}`} value={m.value}>
+                {m.label}
+              </option>
             ))}
           </select>
 
-          {/* Filtre brigade — "Toutes" par défaut */}
           {stats.comparaisonBrigades.length > 0 && (
             <select
               value={brigadeIdFiltre ?? ''}
@@ -293,17 +266,12 @@ export function DashboardPage() {
             </select>
           )}
 
-          {/* Période affichée */}
           <span className="text-sm text-gray-400 ml-auto hidden sm:block">
             {formatPeriode(periode)}
           </span>
         </div>
 
-        {/* ── KPIs ─────────────────────────────────────────────── */}
-        {/*
-          * 2 colonnes mobile → 4 colonnes desktop.
-          * Données réelles depuis l'API (plus de calculs fictifs).
-          */}
+        {/* ── KPIs ──────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard
             icon={FileText}
@@ -335,11 +303,7 @@ export function DashboardPage() {
           />
         </div>
 
-        {/* ── ÉVOLUTION JOURNALIÈRE (LineChart) ────────────────── */}
-        {/*
-          * CDC §3.7.1 : "Graphique d'évolution temporelle (courbe volume + taux)"
-          * 2 lignes : nb missions (axe gauche) + taux conformité % (axe droit)
-          */}
+        {/* ── ÉVOLUTION JOURNALIÈRE ─────────────────────────────── */}
         {evolutionData.length > 0 && (
           <Card>
             <Card.Header>Évolution journalière — {formatPeriode(periode)}</Card.Header>
@@ -347,76 +311,21 @@ export function DashboardPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={evolutionData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-
-                  <XAxis
-                    dataKey="dateLabel"
-                    tick={{ fontSize: 11, fill: COLORS.gris }}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                  />
-
-                  {/* Axe gauche : nb missions */}
-                  <YAxis
-                    yAxisId="left"
-                    tick={{ fontSize: 11, fill: COLORS.gris }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={30}
-                  />
-
-                  {/* Axe droit : taux conformité 0-100% */}
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    domain={[0, 100]}
-                    tick={{ fontSize: 11, fill: COLORS.gris }}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={v => `${v}%`}
-                    width={40}
-                  />
-
+                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} width={30} />
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} width={40} />
                   <Tooltip content={<GeoTooltip />} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={v => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>}
-                  />
-
-                  {/* Courbe nb missions */}
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="missions"
-                    name="Missions"
-                    stroke={COLORS.navy}
-                    strokeWidth={2}
-                    dot={{ r: 3, fill: COLORS.navy }}
-                    activeDot={{ r: 5 }}
-                  />
-
-                  {/* Courbe taux conformité */}
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="taux"
-                    name="Taux conformité %"
-                    stroke={COLORS.teal}
-                    strokeWidth={2}
-                    strokeDasharray="5 3"  // pointillé pour différencier
-                    dot={{ r: 3, fill: COLORS.teal }}
-                    activeDot={{ r: 5 }}
-                  />
+                  <Legend iconType="circle" iconSize={8} formatter={(v: string) => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>} />
+                  <Line yAxisId="left" type="monotone" dataKey="missions" name="Missions" stroke={COLORS.navy} strokeWidth={2} dot={{ r: 3, fill: COLORS.navy }} activeDot={{ r: 5 }} />
+                  <Line yAxisId="right" type="monotone" dataKey="taux" name="Taux conformité %" stroke={COLORS.teal} strokeWidth={2} strokeDasharray="5 3" dot={{ r: 3, fill: COLORS.teal }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </Card.Body>
           </Card>
         )}
 
-        {/* ── DONUT + FICHES EN ATTENTE ─────────────────────────── */}
+        {/* ── DONUT + NC RÉCENTES ───────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          {/* Graphique donut conformité — données réelles */}
           <Card>
             <Card.Header>Répartition des contrôles</Card.Header>
             <Card.Body>
@@ -426,43 +335,25 @@ export function DashboardPage() {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v) => [`${v} missions`, '']}
-                      contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                    />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      formatter={v => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+  <PieChart>
+    <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+    </Pie>
+    <Tooltip content={<GeoTooltip />} />
+    <Legend iconType="circle" iconSize={8} formatter={(v: string) => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>} />
+  </PieChart>
+</ResponsiveContainer>
               )}
             </Card.Body>
           </Card>
 
-          {/* Fiches soumises en attente */}
           <Card>
             <Card.Header>
               <div className="flex items-center justify-between">
-                <span>Fiches à valider</span>
-                {stats.kpis.fichesSoumises > 0 && (
-                  <span className="text-xs font-normal bg-[#D9EAF5] text-[#0D3B66] px-2 py-0.5 rounded-full">
-                    {stats.kpis.fichesSoumises} en attente
+                <span>NC récentes</span>
+                {stats.kpis.nonConformes > 0 && (
+                  <span className="text-xs font-normal bg-red-50 text-red-600 px-2 py-0.5 rounded-full">
+                    {stats.kpis.nonConformes} ce mois
                   </span>
                 )}
               </div>
@@ -470,17 +361,15 @@ export function DashboardPage() {
             <Card.Body className="p-0">
               {stats.ncRecentes.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-gray-400 text-sm p-4">
-                  Aucune fiche en attente ✓
+                  Aucune NC ce mois ✓
                 </div>
               ) : (
-                // Affiche les fiches via les NC récentes pour éviter un 2ème appel API
-                // → clic → redirection vers la fiche complète
                 <div className="divide-y divide-gray-50">
                   {stats.ncRecentes.slice(0, 5).map((nc) => (
                     <button
                       key={nc.id}
                       onClick={() => navigate(`/fiches/${nc.ficheId}`)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 transition-colors text-left"
                     >
                       <div className="w-2 h-2 rounded-full bg-[#DC2626] flex-shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -502,11 +391,7 @@ export function DashboardPage() {
           </Card>
         </div>
 
-        {/* ── RÉPARTITION PAR TYPE D'OUVRAGE (BarChart empilé) ──── */}
-        {/*
-          * CDC §3.7.1 : "Répartition par type d'ouvrage (barres empilées par équipe)"
-          * Chaque barre = 1 type d'ouvrage, empilée C/R/NC
-          */}
+        {/* ── RÉPARTITION PAR OUVRAGE ───────────────────────────── */}
         {ouvrageData.length > 0 && (
           <Card>
             <Card.Header>Missions par type d'ouvrage</Card.Header>
@@ -514,31 +399,12 @@ export function DashboardPage() {
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={ouvrageData} margin={{ top: 5, right: 10, left: 0, bottom: 50 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                  <XAxis
-                    dataKey="typeLabel"
-                    tick={{ fontSize: 10, fill: COLORS.gris }}
-                    tickLine={false}
-                    angle={-35}         // labels inclinés pour lisibilité mobile
-                    textAnchor="end"
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: COLORS.gris }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={28}
-                  />
+                  <XAxis dataKey="typeLabel" tick={{ fontSize: 10, fill: COLORS.gris }} tickLine={false} angle={-35} textAnchor="end" interval={0} />
+                  <YAxis tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} width={28} />
                   <Tooltip content={<GeoTooltip />} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ paddingTop: 8 }}
-                    formatter={v => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>}
-                  />
-
-                  {/* Barres empilées — stackId identique → empilement */}
-                  <Bar dataKey="conformes"   name="Conformes"     stackId="a" fill={COLORS.teal}   radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="reserves"    name="Réserves"      stackId="a" fill={COLORS.orange} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ paddingTop: 8 }} formatter={(v: string) => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>} />
+                  <Bar dataKey="conformes"    name="Conformes"     stackId="a" fill={COLORS.teal} />
+                  <Bar dataKey="reserves"     name="Réserves"      stackId="a" fill={COLORS.orange} />
                   <Bar dataKey="nonConformes" name="Non conformes" stackId="a" fill={COLORS.rouge} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -548,46 +414,23 @@ export function DashboardPage() {
 
         {/* ── NATURES + COMPARAISON BRIGADES ────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          {/* Top natures d'intervention */}
           {natureData.length > 0 && (
             <Card>
               <Card.Header>Top natures d'intervention</Card.Header>
               <Card.Body>
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={natureData}
-                    layout="vertical"   // BarChart horizontal
-                    margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
-                  >
+                  <BarChart data={natureData} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: COLORS.gris }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="natureLabel"
-                      tick={{ fontSize: 10, fill: COLORS.gris }}
-                      tickLine={false}
-                      width={120}
-                    />
+                    <XAxis type="number" tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} />
+                    <YAxis type="category" dataKey="natureLabel" tick={{ fontSize: 10, fill: COLORS.gris }} tickLine={false} width={120} />
                     <Tooltip content={<GeoTooltip />} />
-                    <Bar
-                      dataKey="total"
-                      name="Missions"
-                      fill={COLORS.blue}
-                      radius={[0, 4, 4, 0]}
-                    />
+                    <Bar dataKey="total" name="Missions" fill={COLORS.blue} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Card.Body>
             </Card>
           )}
 
-          {/* Comparaison inter-brigades */}
           {stats.comparaisonBrigades.length > 1 && (
             <Card>
               <Card.Header>
@@ -598,55 +441,15 @@ export function DashboardPage() {
               </Card.Header>
               <Card.Body>
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={stats.comparaisonBrigades}
-                    margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-                  >
+                  <BarChart data={stats.comparaisonBrigades} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-                    <XAxis
-                      dataKey="brigade"
-                      tick={{ fontSize: 11, fill: COLORS.gris }}
-                      tickLine={false}
-                    />
-                    {/* Axe gauche : nb missions */}
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fontSize: 11, fill: COLORS.gris }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={28}
-                    />
-                    {/* Axe droit : taux conformité */}
-                    <YAxis
-                      yAxisId="right"
-                      orientation="right"
-                      domain={[0, 100]}
-                      tick={{ fontSize: 11, fill: COLORS.gris }}
-                      tickLine={false}
-                      axisLine={false}
-                      tickFormatter={v => `${v}%`}
-                      width={38}
-                    />
+                    <XAxis dataKey="brigade" tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} width={28} />
+                    <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 11, fill: COLORS.gris }} tickLine={false} axisLine={false} tickFormatter={(v: number) => `${v}%`} width={38} />
                     <Tooltip content={<GeoTooltip />} />
-                    <Legend
-                      iconType="circle"
-                      iconSize={8}
-                      formatter={v => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>}
-                    />
-                    <Bar
-                      yAxisId="left"
-                      dataKey="missions"
-                      name="Missions"
-                      fill={COLORS.navy}
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      yAxisId="right"
-                      dataKey="taux"
-                      name="Taux (%)"
-                      fill={COLORS.teal}
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Legend iconType="circle" iconSize={8} formatter={(v: string) => <span style={{ fontSize: 12, color: COLORS.gris }}>{v}</span>} />
+                    <Bar yAxisId="left"  dataKey="missions" name="Missions" fill={COLORS.navy} radius={[4, 4, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="taux"     name="Taux (%)" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Card.Body>
@@ -654,24 +457,15 @@ export function DashboardPage() {
           )}
         </div>
 
-        {/* ── TABLEAU NC RÉCENTES ───────────────────────────────── */}
-        {/*
-          * CDC §3.7.1 : "Tableau des NC du jour/semaine (cliquable → détail)"
-          * Clic sur une ligne → navigate vers la FicheDetailPage
-          */}
+        {/* ── TABLEAU NC COMPLET ────────────────────────────────── */}
         {stats.ncRecentes.length > 0 && (
           <Card>
             <Card.Header>
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-[#DC2626]" />
-                Non-conformités récentes
-                <span className="ml-auto text-xs font-normal bg-red-50 text-red-600 px-2 py-0.5 rounded-full">
-                  {stats.kpis.nonConformes} ce mois
-                </span>
+                Toutes les NC du mois
               </div>
             </Card.Header>
-
-            {/* Tableau responsive — scroll horizontal sur mobile */}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -686,29 +480,13 @@ export function DashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {stats.ncRecentes.map((nc) => (
-                    <tr
-                      key={nc.id}
-                      onClick={() => navigate(`/fiches/${nc.ficheId}`)}
-                      className="hover:bg-red-50 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                        {nc.date}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
-                        {nc.brigade}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {formatOuvrage(nc.typeOuvrage)}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                        {nc.nature ? formatNature(nc.nature) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell max-w-xs truncate">
-                        {nc.partieOuvrage ?? '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <ChevronRight size={16} className="text-gray-300" />
-                      </td>
+                    <tr key={nc.id} onClick={() => navigate(`/fiches/${nc.ficheId}`)} className="hover:bg-red-50 cursor-pointer transition-colors">
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{nc.date}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{nc.brigade}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatOuvrage(nc.typeOuvrage)}</td>
+                      <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{nc.nature ? formatNature(nc.nature) : '—'}</td>
+                      <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell max-w-xs truncate">{nc.partieOuvrage ?? '—'}</td>
+                      <td className="px-4 py-3"><ChevronRight size={16} className="text-gray-300" /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -717,7 +495,7 @@ export function DashboardPage() {
           </Card>
         )}
 
-        {/* ── ACCÈS RAPIDE ─────────────────────────────────────── */}
+        {/* ── ACCÈS RAPIDE ──────────────────────────────────────── */}
         <Card>
           <Card.Header>Accès rapide</Card.Header>
           <Card.Body>

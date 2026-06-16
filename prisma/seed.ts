@@ -44,7 +44,6 @@ async function main() {
   console.log('✅ Utilisateurs créés :')
   console.log('   admin@geocoding.ma    / password123  (ADMIN)')
   console.log('   igt@geocoding.ma      / password123  (IGT)')
-  console.log('   equipe01@geocoding.ma / password123  (BRIGADE)')
   console.log('   equipe02@geocoding.ma / password123  (BRIGADE)')
 
   // ── OUVRAGES ───────────────────────────────────────────────────

@@ -72,13 +72,43 @@ enum StatutMission {
 }
 
 enum TypeOuvrage {
+  // Existants
   PLATINE
   POTEAU
+  POTEAU_AV_BETONNAGE
+  POTEAU_AP_BETONNAGE
+  POUTRE_CREMAILLERE_AV_BETONNAGE
+  POUTRE_CREMAILLERE_AP_BETONNAGE
   VOILE
+  VOILE_AV_BETONNAGE
+  VOILE_AP_BETONNAGE
   GRADIN
+  CHAMBORD
+  VOMITOIRE
+  SEMELLE_FILANTE
+  SEMELLE_ISOLEE
+  DALLES
+  MUR_SOUTENEMENT
+  TERRASSEMENT
+  ASSAINISSEMENT
   FONDATION
   VRD
   AUTRE
+
+  // Nouveaux (observés dans les Excel 2026)
+  FIXATION_BOULONS_CREMAILLERES_AV_BETONNAGE
+  FIXATION_BOULONS_CREMAILLERES_AP_BETONNAGE
+  SUPPORT_GRADIN
+  DALLES_AV_BETONNAGE
+  DALLES_AP_BETONNAGE
+  IMPLANTATION_GENERAL
+  LIT_POSE
+  COFFRAGE_VOILES_REGARD
+  VOILE_REGARD_AP_BETONNAGE
+  COFFRAGE_RADIER
+  COFFRAGE_DALLE
+  COFFRAGE_GROS_BETON
+  GROS_BETON_AP_BETONNAGE
 }
 
 enum TypeControle {
@@ -87,6 +117,22 @@ enum TypeControle {
   VERTICALITY
   RECEPTION
   CONTRADICTOIRE
+}
+
+enum CategorieAssainissement {
+  FOND_DE_FOUILLE
+  FIL_EAU
+  COTE_RADIER
+  // Nouvelles valeurs :
+  LIT_POSE
+  COFFRAGE_VOILES_REGARD
+  VOILE_REGARD_AP_BETONNAGE
+  COFFRAGE_RADIER
+  COFFRAGE_DALLE
+  COFFRAGE_GROS_BETON
+  GROS_BETON_AP_BETONNAGE
+  IMPLANTATION_GENERAL
+  AUTRE
 }
 
 enum StatutControle {
@@ -254,24 +300,34 @@ model Mission {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  // ── Champs CDC ─────────────────────────────────
+  // Champs CDC (existants)
   zone             ZoneGSC?
   axe              String?
   fil              String?
   niveau           String?
   partieOuvrage    String?
-  nature           NatureIntervention?
+  nature    NatureIntervention?   // ex: "IMPLANTATION,CONTROLE_GEOMETRIQUE"
   appareil         AppareilMesure?
   travailRealise   String?
   stadeCollage     StadeCollage?
   conditionMeteo   ConditionMeteo?
-  resultat         String?
+  resultat         String?                 // Conformité (C/NC) => devrait être enum
+  ficheReference   String?                 // Référence papier
+
+  // Types d'ouvrage (enum ou libre)
+  typeOuvrage      TypeOuvrage?            // Standard
+  typeOuvrageLibre String?                 // Libre pour nouveaux types
+
+  // Assainissement (enum ou libre)
+  categorieAssainissement CategorieAssainissement? // Standard
+  assainissementLibre      String?                // Libre
+
+  // Ouvrage (relation)
+  ouvrage     Ouvrage   @relation(fields: [ouvrageId], references: [id])
+  ouvrageId   String
 
   fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
   ficheId     String
-
-  ouvrage     Ouvrage   @relation(fields: [ouvrageId], references: [id])
-  ouvrageId   String
 
   controles   Controle[]
 
