@@ -35,16 +35,28 @@ export class FichePrismaRepository implements IFicheRepository {
     }
 
     // Lance les deux requêtes en parallèle pour optimiser
-    const [fiches, total] = await Promise.all([
-      prisma.ficheJournaliere.findMany({
-        where,
-        orderBy: { date: 'desc' }, // plus récentes en premier
-        skip,
-        take: limit  // LIMIT en SQL
-      }),
-      prisma.ficheJournaliere.count({ where })
-      // COUNT(*) pour la pagination
-    ])
+    // Lance les deux requêtes en parallèle pour optimiser
+const [fiches, total] = await Promise.all([
+  prisma.ficheJournaliere.findMany({
+    where,
+    orderBy: { date: 'desc' },
+    skip,
+    take: limit,
+    // ✅ AJOUT — inclut les relations nécessaires au frontend
+    include: {
+      brigade: {
+        select: { id: true, nom: true, chef: true }
+      },
+      createur: {
+        select: { id: true, nom: true, prenom: true }
+      },
+      _count: {
+        select: { missions: true }
+      }
+    }
+  }),
+  prisma.ficheJournaliere.count({ where })
+])
 
     return { fiches, total }
   }

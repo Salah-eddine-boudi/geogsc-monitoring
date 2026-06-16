@@ -45,6 +45,7 @@ let tokenIGT: string
 let ficheId: string
 let missionId: string
 let ouvrageId: string
+let userIds: string[] = []
 
 // ─── LIFECYCLE ────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ beforeAll(async () => {
   ouvrageId = ouvrage.id
 
   // Crée utilisateurs de test
-  await prisma.user.upsert({
+  const userBrigade = await prisma.user.upsert({
     where: { email: 'brigade-mission-test@geocoding.ma' },
     update: {},
     create: {
@@ -85,7 +86,7 @@ beforeAll(async () => {
     }
   })
 
-  await prisma.user.upsert({
+  const userIGT = await prisma.user.upsert({
     where: { email: 'igt-mission-test@geocoding.ma' },
     update: {},
     create: {
@@ -95,6 +96,8 @@ beforeAll(async () => {
       role: 'IGT'
     }
   })
+
+  userIds = [userBrigade.id, userIGT.id]
 
   // Login Brigade
   const loginBrigade = await app.inject({
@@ -131,6 +134,13 @@ afterAll(async () => {
   await prisma.controle.deleteMany()
   await prisma.mission.deleteMany({ where: { ficheId } })
   await prisma.ficheJournaliere.deleteMany({ where: { id: ficheId } })
+  // Supprime les refresh tokens AVANT les users
+  await prisma.refreshToken.deleteMany({
+    where: { userId: { in: userIds } }
+  })
+  await prisma.auditLog.deleteMany({
+    where: { userId: { in: userIds } }
+  })
   await prisma.user.deleteMany({
     where: { email: { in: ['brigade-mission-test@geocoding.ma', 'igt-mission-test@geocoding.ma'] } }
   })
@@ -323,15 +333,14 @@ describe('Scénario complet — soumettre après missions', () => {
 describe('DELETE /fiches/:ficheId/missions/:id', () => {
 
   it('crée et supprime une mission', async () => {
-    // Crée une nouvelle fiche pour ce test
-    const lendemain = new Date()
-    lendemain.setDate(lendemain.getDate() + 3)
+    // Crée une nouvelle fiche pour ce test — date très éloignée pour éviter les conflits
+    const dateFuture = new Date('2030-12-31')
 
     const nouvelleFiche = await app.inject({
       method: 'POST',
       url: '/fiches',
       headers: { authorization: `Bearer ${tokenBrigade}` },
-      payload: { date: lendemain.toISOString().split('T')[0] }
+      payload: { date: dateFuture.toISOString().split('T')[0] }
     })
     const nouvelleFicheId = nouvelleFiche.json().fiche.id
 

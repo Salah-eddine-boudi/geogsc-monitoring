@@ -2,21 +2,17 @@
  * @file create-mission.use-case.ts
  * @description Use-case : créer une mission dans une fiche journalière.
  *
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * SCÉNARIO CONCRET :
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SCÉNARIO :
  * 09h00 — M. AIT KADIR commence sa première mission :
- * "Contrôle implantation platines charpente — Axe A"
- * → Il sélectionne l'ouvrage PLT-A-01 dans la liste
- * → La mission est créée en PLANIFIEE dans sa fiche du jour
+ * → Contrôle implantation platines — Zone D, Axe D03/D05, fil M/N, R+1
+ * → Appareil : Trimble SX12
+ * → Résultat : C (Conforme)
  *
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * RÈGLES MÉTIER :
- * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
- * 1. La fiche doit exister → NotFoundError
- * 2. La fiche doit être en BROUILLON → AppError STATUT_INVALIDE
- * 3. La brigade ne peut ajouter des missions qu'à SA fiche → ForbiddenError
- * 4. L'ouvrage doit exister ET être actif → NotFoundError
+ * 1. La fiche doit exister
+ * 2. La fiche doit être en BROUILLON
+ * 3. La brigade ne peut ajouter des missions qu'à SA fiche
+ * 4. L'ouvrage doit exister ET être actif
  */
 
 import type { IMissionRepository } from '../../domain/repositories/mission.repository.js'
@@ -25,22 +21,43 @@ import type { IOuvrageRepository } from '../../domain/repositories/ouvrage.repos
 import type { MissionEntity } from '../../domain/entities/mission.entity.js'
 import { NotFoundError, ForbiddenError, AppError } from '../../domain/errors.js'
 
+/**
+ * Type d'entrée du use-case.
+ *
+ * POURQUOI REDÉCLARER LES TYPES ICI ?
+ * Le use-case ne connaît pas Zod ni Prisma — Clean Architecture.
+ * Il reçoit des données déjà validées depuis la route.
+ * Il passe des données typées au repository.
+ * Chaque couche a ses propres types.
+ */
 export type CreateMissionInput = {
-  ficheId: string
+  // ── Obligatoire ────────────────────────────────────────────────
+  ficheId:   string
   ouvrageId: string
-  observations?: string
+
+  // ── Localisation ──────────────────────────────────────────────
+  zone?:          string   // Zone A/B/C/D du stade
+  axe?:           string   // ex: "Axe D03/D05"
+  fil?:           string   // ex: "fil M/N"
+  niveau?:        string   // ex: "R+1", "SSL"
+  partieOuvrage?: string   // ex: "Crémaillère intermédiaire"
+
+  // ── Intervention ──────────────────────────────────────────────
+  nature?:         string  // NatureIntervention enum
+  appareil?:       string  // AppareilMesure enum
+  travailRealise?: string  // description libre
+  stadeCollage?:   string  // StadeCollage enum
+
+  // ── Résultat ──────────────────────────────────────────────────
+  conditionMeteo?: string  // ConditionMeteo enum
+  resultat?:       string  // "C", "NC" ou "R"
+  observations?:   string
+
+  // ── Auth ──────────────────────────────────────────────────────
   userBrigadeId: string | undefined
-  userRole: string
+  userRole:      string
 }
 
-/**
- * Use-case CreateMission.
- *
- * @param input             - données de la mission
- * @param missionRepository - contrat repository missions
- * @param ficheRepository   - contrat repository fiches
- * @param ouvrageRepository - contrat repository ouvrages
- */
 export async function createMissionUseCase(
   input: CreateMissionInput,
   missionRepository: IMissionRepository,
@@ -48,11 +65,11 @@ export async function createMissionUseCase(
   ouvrageRepository: IOuvrageRepository
 ): Promise<MissionEntity> {
 
-  // ── ÉTAPE 1 — Vérifie que la fiche existe ───────────────────────────────────
+  // ── ÉTAPE 1 — Vérifie que la fiche existe ─────────────────────
   const fiche = await ficheRepository.findById(input.ficheId)
   if (!fiche) throw new NotFoundError('Fiche journalière')
 
-  // ── ÉTAPE 2 — Vérifie que c'est la fiche de cette brigade ───────────────────
+  // ── ÉTAPE 2 — Contrôle d'accès Brigade ────────────────────────
   if (
     input.userRole === 'BRIGADE' &&
     fiche.brigadeId !== input.userBrigadeId
@@ -60,27 +77,28 @@ export async function createMissionUseCase(
     throw new ForbiddenError()
   }
 
-  // ── ÉTAPE 3 — Vérifie que la fiche est en BROUILLON ─────────────────────────
+  // ── ÉTAPE 3 — Fiche doit être en BROUILLON ────────────────────
   if (fiche.statut !== 'BROUILLON') {
     throw new AppError(
       'STATUT_INVALIDE',
-      `Impossible d'ajouter une mission à une fiche en statut "${fiche.statut}". La fiche doit être en BROUILLON.`,
+      `Impossible d'ajouter une mission à une fiche "${fiche.statut}". La fiche doit être en BROUILLON.`,
       400
     )
   }
 
-  // ── ÉTAPE 4 — Vérifie que l'ouvrage existe et est actif ─────────────────────
-  // On retourne NotFoundError dans les deux cas (inexistant ou inactif)
-  // pour ne pas révéler qu'un ouvrage existe mais est désactivé
+  // ── ÉTAPE 4 — Vérifie l'ouvrage ───────────────────────────────
   const ouvrage = await ouvrageRepository.findById(input.ouvrageId)
   if (!ouvrage || !ouvrage.actif) {
     throw new NotFoundError('Ouvrage')
   }
 
-  // ── ÉTAPE 5 — Crée la mission en PLANIFIEE ───────────────────────────────────
+  // ── ÉTAPE 5 — Crée la mission avec tous les champs CDC ─────────
+  // On extrait les champs auth (non sauvegardés en BDD)
+  // et on passe tout le reste au repository
+  const { userBrigadeId, userRole, ficheId, ...data } = input
+
   return missionRepository.create({
-    ficheId: input.ficheId,
-    ouvrageId: input.ouvrageId,
-    observations: input.observations
+    ficheId,
+    ...data  // contient ouvrageId + tous les nouveaux champs
   })
 }
