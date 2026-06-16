@@ -15,3 +15,8 @@ export type JwtPayload = {
   role: string
   brigadeId?: string
 }
+
+export type Role = 'BRIGADE' | 'IGT' | 'ADMIN'
+
+
+

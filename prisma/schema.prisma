@@ -14,6 +14,49 @@ enum Role {
   IGT
   ADMIN
 }
+enum ZoneGSC {
+  A
+  B
+  C
+  D
+  HORS_ZONE
+}
+
+enum ConditionMeteo {
+  BEAU
+  NUAGEUX
+  PLUIE
+  VENT_FORT
+  BROUILLARD
+}
+
+enum NatureIntervention {
+  IMPLANTATION
+  CONTROLE_GEOMETRIQUE
+  CONTROLE_ALTIMETRIQUE
+  RECEPTION
+  CONTRADICTOIRE
+  RELEVE_TOPOGRAPHIQUE
+  PIQUETAGE
+}
+
+enum StadeCollage {
+  AVANT_BETONNAGE
+  APRES_BETONNAGE
+  AVANT_SOUDURE
+  APRES_SOUDURE
+  RECEPTION_FINALE
+}
+
+enum AppareilMesure {
+  TRIMBLE_SX12
+  TRIMBLE_S7
+  LEICA_TS16
+  LEICA_NA730
+  GPS_TRIMBLE
+  NIVEAU_OPTIQUE
+  AUTRE
+}
 
 enum StatutFiche {
   BROUILLON
@@ -29,13 +72,43 @@ enum StatutMission {
 }
 
 enum TypeOuvrage {
+  // Existants
   PLATINE
   POTEAU
+  POTEAU_AV_BETONNAGE
+  POTEAU_AP_BETONNAGE
+  POUTRE_CREMAILLERE_AV_BETONNAGE
+  POUTRE_CREMAILLERE_AP_BETONNAGE
   VOILE
+  VOILE_AV_BETONNAGE
+  VOILE_AP_BETONNAGE
   GRADIN
+  CHAMBORD
+  VOMITOIRE
+  SEMELLE_FILANTE
+  SEMELLE_ISOLEE
+  DALLES
+  MUR_SOUTENEMENT
+  TERRASSEMENT
+  ASSAINISSEMENT
   FONDATION
   VRD
   AUTRE
+
+  // Nouveaux (observés dans les Excel 2026)
+  FIXATION_BOULONS_CREMAILLERES_AV_BETONNAGE
+  FIXATION_BOULONS_CREMAILLERES_AP_BETONNAGE
+  SUPPORT_GRADIN
+  DALLES_AV_BETONNAGE
+  DALLES_AP_BETONNAGE
+  IMPLANTATION_GENERAL
+  LIT_POSE
+  COFFRAGE_VOILES_REGARD
+  VOILE_REGARD_AP_BETONNAGE
+  COFFRAGE_RADIER
+  COFFRAGE_DALLE
+  COFFRAGE_GROS_BETON
+  GROS_BETON_AP_BETONNAGE
 }
 
 enum TypeControle {
@@ -44,6 +117,22 @@ enum TypeControle {
   VERTICALITY
   RECEPTION
   CONTRADICTOIRE
+}
+
+enum CategorieAssainissement {
+  FOND_DE_FOUILLE
+  FIL_EAU
+  COTE_RADIER
+  // Nouvelles valeurs :
+  LIT_POSE
+  COFFRAGE_VOILES_REGARD
+  VOILE_REGARD_AP_BETONNAGE
+  COFFRAGE_RADIER
+  COFFRAGE_DALLE
+  COFFRAGE_GROS_BETON
+  GROS_BETON_AP_BETONNAGE
+  IMPLANTATION_GENERAL
+  AUTRE
 }
 
 enum StatutControle {
@@ -69,9 +158,97 @@ model User {
   brigadeId     String?
   fichesCreees  FicheJournaliere[] @relation("FicheCreateur")
   fichesValidees FicheJournaliere[] @relation("FicheValidateur")
+  refreshTokens RefreshToken[]
+  auditLogs  AuditLog[]
+  cpCrees CompteRenduCP[] @relation("CPCreateur")
 
   @@map("users")
 }
+
+
+
+// ─── COMPTE RENDU CP ─────────────────────────────────────────────
+
+enum StatutCP {
+  BROUILLON
+  SOUMIS
+  VALIDE
+}
+
+enum TypeEvenement {
+  VISITE_CHANTIER
+  REUNION
+  INCIDENT
+  CONSTAT
+  AUTRE
+}
+
+enum CriticiteVigilance {
+  HAUTE
+  MOYENNE
+  FAIBLE
+}
+
+model CompteRenduCP {
+  id          String    @id @default(cuid())
+  semaine     Int       // numéro de semaine ISO ex: 23
+  annee       Int       // ex: 2026
+  statut      StatutCP  @default(BROUILLON)
+  observations String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  brigade     Brigade   @relation(fields: [brigadeId], references: [id])
+  brigadeId   String
+
+  createur    User      @relation("CPCreateur", fields: [createurId], references: [id])
+  createurId  String
+
+  evenements  EvenementCP[]
+  pointsVigilance PointVigilanceCP[]
+
+  @@unique([brigadeId, semaine, annee])
+  @@map("comptes_rendus_cp")
+}
+
+model EvenementCP {
+  id          String         @id @default(cuid())
+  date        DateTime
+  type        TypeEvenement
+  description String
+  participants String?
+  lieu        String?
+  createdAt   DateTime       @default(now())
+
+  cp          CompteRenduCP  @relation(fields: [cpId], references: [id])
+  cpId        String
+
+  @@map("evenements_cp")
+}
+
+model PointVigilanceCP {
+  id          String              @id @default(cuid())
+  criticite   CriticiteVigilance
+  description String
+  action      String?
+  responsable String?
+  echeance    DateTime?
+  resolu      Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+
+  cp          CompteRenduCP       @relation(fields: [cpId], references: [id])
+  cpId        String
+
+  @@map("points_vigilance_cp")
+}
+
+
+
+
+
+
+
+
 
 // ─── BRIGADE ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +261,7 @@ model Brigade {
 
   membres   User[]
   fiches    FicheJournaliere[]
+  comptesRendusCP CompteRenduCP[]
 
   @@map("brigades")
 }
@@ -113,8 +291,6 @@ model FicheJournaliere {
   @@map("fiches_journalieres")
 }
 
-// ─── MISSION ─────────────────────────────────────────────────────────────────
-
 model Mission {
   id          String        @id @default(cuid())
   statut      StatutMission @default(PLANIFIEE)
@@ -124,11 +300,34 @@ model Mission {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
-  ficheId     String
+  // Champs CDC (existants)
+  zone             ZoneGSC?
+  axe              String?
+  fil              String?
+  niveau           String?
+  partieOuvrage    String?
+  nature    NatureIntervention?   // ex: "IMPLANTATION,CONTROLE_GEOMETRIQUE"
+  appareil         AppareilMesure?
+  travailRealise   String?
+  stadeCollage     StadeCollage?
+  conditionMeteo   ConditionMeteo?
+  resultat         String?                 // Conformité (C/NC) => devrait être enum
+  ficheReference   String?                 // Référence papier
 
+  // Types d'ouvrage (enum ou libre)
+  typeOuvrage      TypeOuvrage?            // Standard
+  typeOuvrageLibre String?                 // Libre pour nouveaux types
+
+  // Assainissement (enum ou libre)
+  categorieAssainissement CategorieAssainissement? // Standard
+  assainissementLibre      String?                // Libre
+
+  // Ouvrage (relation)
   ouvrage     Ouvrage   @relation(fields: [ouvrageId], references: [id])
   ouvrageId   String
+
+  fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
+  ficheId     String
 
   controles   Controle[]
 
@@ -171,4 +370,39 @@ model Controle {
   missionId     String
 
   @@map("controles")
+}
+
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("refresh_tokens")
+  
+
+
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entite    String
+  entiteId  String
+  userId    String
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([entiteId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
