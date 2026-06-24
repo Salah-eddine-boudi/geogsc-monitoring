@@ -7,13 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── ENUMS ───────────────────────────────────────────────────────────────────
+// ─── ENUMS ────────────────────────────────────────────────────────
 
 enum Role {
   BRIGADE
   IGT
   ADMIN
 }
+
 enum ZoneGSC {
   A
   B
@@ -30,17 +31,53 @@ enum ConditionMeteo {
   BROUILLARD
 }
 
-enum NatureIntervention {
-  IMPLANTATION
-  CONTROLE_GEOMETRIQUE
-  CONTROLE_ALTIMETRIQUE
-  RECEPTION
-  CONTRADICTOIRE
-  RELEVE_TOPOGRAPHIQUE
-  PIQUETAGE
+enum StatutConformite {
+  CONFORME
+  NON_CONFORME
+  RESERVE
 }
 
+// ── NatureIntervention — 16 valeurs CDC §3.1.2 ────────────────────
+enum NatureIntervention {
+  // Nouvelles — CDC §3.1.2 (ordre logique terrain)
+  IMPLANTATION
+  CONTROLE_IMPLANTATION
+  CONTROLE_COFFRAGE
+  CONTROLE_VERTICALITE
+  CONTROLE_NIVELLEMENT
+  CONTROLE_PLANEITE
+  RECEPTION_AVANT_BETONNAGE
+  RECEPTION_APRES_BETONNAGE
+  RECEPTION_APRES_DECOFFRAGE
+  CONTROLE_FOND_FOUILLE
+  CONTROLE_FIL_EAU
+  CONTROLE_COTE_RADIER
+  LEVE_CONTRADICTOIRE
+  LEVE_AS_BUILT
+  CONTROLE_PENTE
+  AUTRE
+  // Anciens — compatibilité
+  CONTROLE_GEOMETRIQUE
+  CONTROLE_ALTIMETRIQUE
+  CONTROLE_NIVELLEMNT    // typo gardée pour compatibilité BDD
+  RECEPTION
+  RELEVE_TOPOGRAPHIQUE
+  PIQUETAGE
+  CONTRADICTOIRE
+}
+
+// ── StadeCollage — CDC §3.1.2 ─────────────────────────────────────
 enum StadeCollage {
+  // Nouveaux — CDC
+  PREMIER_COLLAGE
+  DEUXIEME_COLLAGE
+  TROISIEME_COLLAGE
+  PREMIERE_LEVEE
+  DEUXIEME_LEVEE
+  TROISIEME_LEVEE
+  LEVEE_FINALE
+  NA
+  // Anciens — compatibilité
   AVANT_BETONNAGE
   APRES_BETONNAGE
   AVANT_SOUDURE
@@ -48,6 +85,19 @@ enum StadeCollage {
   RECEPTION_FINALE
 }
 
+// ── ProvenanceAppareil — Q5 chantier ─────────────────────────────
+enum ProvenanceAppareil {
+  GEOCODING    // Matériel GEOCODING (interne)
+  ENTREPRISE   // Matériel Entreprise (externe)
+}
+
+// ── ProvenanceMateriel — Q5 chantier ─────────────────────────────
+enum ProvenanceMateriel {
+  GEOCODING
+  ENTREPRISE
+}
+
+// ── AppareilMesure — gardé pour compatibilité données existantes ──
 enum AppareilMesure {
   TRIMBLE_SX12
   TRIMBLE_S7
@@ -72,7 +122,6 @@ enum StatutMission {
 }
 
 enum TypeOuvrage {
-  // Existants
   PLATINE
   POTEAU
   POTEAU_AV_BETONNAGE
@@ -94,8 +143,6 @@ enum TypeOuvrage {
   FONDATION
   VRD
   AUTRE
-
-  // Nouveaux (observés dans les Excel 2026)
   FIXATION_BOULONS_CREMAILLERES_AV_BETONNAGE
   FIXATION_BOULONS_CREMAILLERES_AP_BETONNAGE
   SUPPORT_GRADIN
@@ -123,7 +170,6 @@ enum CategorieAssainissement {
   FOND_DE_FOUILLE
   FIL_EAU
   COTE_RADIER
-  // Nouvelles valeurs :
   LIT_POSE
   COFFRAGE_VOILES_REGARD
   VOILE_REGARD_AP_BETONNAGE
@@ -141,33 +187,33 @@ enum StatutControle {
   RESERVE
 }
 
-// ─── USER ────────────────────────────────────────────────────────────────────
+// ─── USER ─────────────────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  nom       String
-  prenom    String
-  email     String   @unique
-  password  String
-  role      Role
-  actif     Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  nom           String
+  prenom        String
+  email         String   @unique
+  password      String
+  role          Role
+  gsm           String?
+  stationTotale String?
+  actif         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  brigade       Brigade?       @relation(fields: [brigadeId], references: [id])
-  brigadeId     String?
-  fichesCreees  FicheJournaliere[] @relation("FicheCreateur")
+  brigade        Brigade?           @relation(fields: [brigadeId], references: [id])
+  brigadeId      String?
+  fichesCreees   FicheJournaliere[] @relation("FicheCreateur")
   fichesValidees FicheJournaliere[] @relation("FicheValidateur")
-  refreshTokens RefreshToken[]
-  auditLogs  AuditLog[]
-  cpCrees CompteRenduCP[] @relation("CPCreateur")
+  refreshTokens  RefreshToken[]
+  auditLogs      AuditLog[]
+  cpCrees        CompteRenduCP[]    @relation("CPCreateur")
 
   @@map("users")
 }
 
-
-
-// ─── COMPTE RENDU CP ─────────────────────────────────────────────
+// ─── COMPTE RENDU CP ──────────────────────────────────────────────
 
 enum StatutCP {
   BROUILLON
@@ -190,21 +236,22 @@ enum CriticiteVigilance {
 }
 
 model CompteRenduCP {
-  id          String    @id @default(cuid())
-  semaine     Int       // numéro de semaine ISO ex: 23
-  annee       Int       // ex: 2026
-  statut      StatutCP  @default(BROUILLON)
+  id           String   @id @default(cuid())
+  semaine      Int
+  annee        Int
+  statut       StatutCP @default(BROUILLON)
   observations String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt DateTime?
 
-  brigade     Brigade   @relation(fields: [brigadeId], references: [id])
-  brigadeId   String
+  brigade   Brigade @relation(fields: [brigadeId], references: [id])
+  brigadeId String
 
-  createur    User      @relation("CPCreateur", fields: [createurId], references: [id])
-  createurId  String
+  createur   User   @relation("CPCreateur", fields: [createurId], references: [id])
+  createurId String
 
-  evenements  EvenementCP[]
+  evenements      EvenementCP[]
   pointsVigilance PointVigilanceCP[]
 
   @@unique([brigadeId, semaine, annee])
@@ -212,166 +259,176 @@ model CompteRenduCP {
 }
 
 model EvenementCP {
-  id          String         @id @default(cuid())
-  date        DateTime
-  type        TypeEvenement
-  description String
+  id           String        @id @default(cuid())
+  date         DateTime
+  type         TypeEvenement
+  description  String
   participants String?
-  lieu        String?
-  createdAt   DateTime       @default(now())
+  lieu         String?
+  createdAt    DateTime      @default(now())
 
-  cp          CompteRenduCP  @relation(fields: [cpId], references: [id])
-  cpId        String
+  cp   CompteRenduCP @relation(fields: [cpId], references: [id])
+  cpId String
 
   @@map("evenements_cp")
 }
 
 model PointVigilanceCP {
-  id          String              @id @default(cuid())
+  id          String             @id @default(cuid())
   criticite   CriticiteVigilance
   description String
   action      String?
   responsable String?
   echeance    DateTime?
-  resolu      Boolean             @default(false)
-  createdAt   DateTime            @default(now())
+  resolu      Boolean            @default(false)
+  createdAt   DateTime           @default(now())
 
-  cp          CompteRenduCP       @relation(fields: [cpId], references: [id])
-  cpId        String
+  cp   CompteRenduCP @relation(fields: [cpId], references: [id])
+  cpId String
 
   @@map("points_vigilance_cp")
 }
 
-
-
-
-
-
-
-
-
-// ─── BRIGADE ─────────────────────────────────────────────────────────────────
+// ─── BRIGADE ──────────────────────────────────────────────────────
 
 model Brigade {
   id        String   @id @default(cuid())
-  nom       String   @unique  // "Équipe 01" .. "Équipe 04"
-  chef      String            // Nom du chef d'équipe
+  nom       String   @unique
+  chef      String
   actif     Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  membres   User[]
-  fiches    FicheJournaliere[]
+  membres         User[]
+  fiches          FicheJournaliere[]
   comptesRendusCP CompteRenduCP[]
 
   @@map("brigades")
 }
 
-// ─── FICHE JOURNALIERE ───────────────────────────────────────────────────────
+// ─── FICHE JOURNALIERE ────────────────────────────────────────────
 
 model FicheJournaliere {
-  id          String      @id @default(cuid())
-  date        DateTime
-  statut      StatutFiche @default(BROUILLON)
-  observations String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id             String          @id @default(cuid())
+  date           DateTime
+  statut         StatutFiche     @default(BROUILLON)
+  observations   String?
+  conditionMeteo ConditionMeteo?
 
-  brigade     Brigade  @relation(fields: [brigadeId], references: [id])
-  brigadeId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+@@index([deletedAt])
 
-  createur    User     @relation("FicheCreateur", fields: [createurId], references: [id])
-  createurId  String
+  brigade   Brigade @relation(fields: [brigadeId], references: [id])
+  brigadeId String
 
-  validateur  User?    @relation("FicheValidateur", fields: [validateurId], references: [id])
+  createur   User   @relation("FicheCreateur", fields: [createurId], references: [id])
+  createurId String
+
+  validateur   User?   @relation("FicheValidateur", fields: [validateurId], references: [id])
   validateurId String?
 
-  missions    Mission[]
+  missions Mission[]
 
   @@unique([brigadeId, date])
   @@map("fiches_journalieres")
 }
 
+// ─── MISSION ──────────────────────────────────────────────────────
+
 model Mission {
-  id          String        @id @default(cuid())
-  statut      StatutMission @default(PLANIFIEE)
-  heureDebut  DateTime?
-  heureFin    DateTime?
-  observations String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  statut        StatutMission @default(PLANIFIEE)
+  heureDebut    DateTime?
+  heureFin      DateTime?
+  observations  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?     // Ajouté pour le soft-delete
 
-  // Champs CDC (existants)
-  zone             ZoneGSC?
-  axe              String?
-  fil              String?
-  niveau           String?
-  partieOuvrage    String?
-  nature    NatureIntervention?   // ex: "IMPLANTATION,CONTROLE_GEOMETRIQUE"
-  appareil         AppareilMesure?
-  travailRealise   String?
-  stadeCollage     StadeCollage?
-  conditionMeteo   ConditionMeteo?
-  resultat         String?                 // Conformité (C/NC) => devrait être enum
-  ficheReference   String?                 // Référence papier
+  zone          ZoneGSC?
+  sousZone      String?
+  axe           String?
+  fil           String?
+  niveau        String?
+  partieOuvrage String?
 
-  // Types d'ouvrage (enum ou libre)
-  typeOuvrage      TypeOuvrage?            // Standard
-  typeOuvrageLibre String?                 // Libre pour nouveaux types
+  nature         NatureIntervention?
+  travailRealise String?
+  stadeCollage   StadeCollage?
 
-  // Assainissement (enum ou libre)
-  categorieAssainissement CategorieAssainissement? // Standard
-  assainissementLibre      String?                // Libre
+  provenanceAppareil ProvenanceAppareil?
+  nomAppareil        String?
+  appareil           AppareilMesure?
 
-  // Ouvrage (relation)
-  ouvrage     Ouvrage   @relation(fields: [ouvrageId], references: [id])
-  ouvrageId   String
+  provenanceMateriel ProvenanceMateriel?
 
-  fiche       FicheJournaliere @relation(fields: [ficheId], references: [id])
-  ficheId     String
+  // RESULTAT EN ENUM (Corrigé)
+  resultat       StatutConformite?
+  ficheReference String?
 
-  controles   Controle[]
+  // LE CHAMP MANQUANT POUR TON SEED !
+  estNC Boolean @default(false)
 
+  typeOuvrage      TypeOuvrage?
+  typeOuvrageLibre String?
+
+  categorieAssainissement CategorieAssainissement?
+  assainissementLibre     String?
+
+  ouvrage   Ouvrage @relation(fields: [ouvrageId], references: [id])
+  ouvrageId String
+
+  fiche   FicheJournaliere @relation(fields: [ficheId], references: [id])
+  ficheId String
+
+  controles Controle[]
+  photos    Photo[] // LA RELATION MANQUANTE POUR TON SEED !
+
+  @@index([estNC])
+  @@index([deletedAt])
   @@map("missions")
 }
 
-// ─── OUVRAGE ─────────────────────────────────────────────────────────────────
+// ─── OUVRAGE ──────────────────────────────────────────────────────
 
 model Ouvrage {
   id          String      @id @default(cuid())
-  reference   String      @unique  // ex: "POT-A-12"
+  reference   String      @unique
   designation String
   type        TypeOuvrage
-  axe         String?     // ex: "Axe A", "Tribune Nord-Ouest"
-  niveau      String?     // ex: "N+1", "RDC"
+  axe         String?
+  niveau      String?
   actif       Boolean     @default(true)
   createdAt   DateTime    @default(now())
 
-  missions    Mission[]
+  missions Mission[]
 
   @@map("ouvrages")
 }
 
-// ─── CONTROLE ────────────────────────────────────────────────────────────────
+// ─── CONTROLE ─────────────────────────────────────────────────────
 
 model Controle {
-  id            String         @id @default(cuid())
-  type          TypeControle
-  statut        StatutControle
-  ecartX        Float?         // en mm
-  ecartY        Float?         // en mm
-  ecartZ        Float?         // en mm
-  toleranceX    Float?         // en mm
-  toleranceY    Float?         // en mm
-  toleranceZ    Float?         // en mm
-  observations  String?
-  createdAt     DateTime       @default(now())
+  id           String         @id @default(cuid())
+  type         TypeControle
+  statut       StatutControle
+  ecartX       Float?
+  ecartY       Float?
+  ecartZ       Float?
+  toleranceX   Float?
+  toleranceY   Float?
+  toleranceZ   Float?
+  observations String?
+  createdAt    DateTime       @default(now())
 
-  mission       Mission  @relation(fields: [missionId], references: [id])
-  missionId     String
+  mission   Mission @relation(fields: [missionId], references: [id])
+  missionId String
 
   @@map("controles")
 }
 
+// ─── REFRESH TOKEN ────────────────────────────────────────────────
 
 model RefreshToken {
   id        String   @id @default(cuid())
@@ -381,13 +438,12 @@ model RefreshToken {
   createdAt DateTime @default(now())
   revoked   Boolean  @default(false)
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("refresh_tokens")
-  
-
-
 }
+
+// ─── AUDIT LOG ────────────────────────────────────────────────────
 
 model AuditLog {
   id        String   @id @default(cuid())
@@ -398,11 +454,29 @@ model AuditLog {
   meta      Json?
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([entiteId])
   @@index([userId])
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── PHOTO ────────────────────────────────────────────────────────
+
+model Photo {
+  id        String   @id @default(cuid())
+  url       String
+  latitude  Float?
+  longitude Float?
+  legende   String?
+  taille    Int?
+  createdAt DateTime @default(now())
+
+  mission   Mission @relation(fields: [missionId], references: [id])
+  missionId String
+
+  @@index([missionId])
+  @@map("photos")
 }

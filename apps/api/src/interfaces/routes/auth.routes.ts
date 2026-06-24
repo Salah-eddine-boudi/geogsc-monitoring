@@ -12,6 +12,10 @@ import { UserPrismaRepository } from '../../infrastructure/prisma/repositories/u
 import { requireAuth } from '../plugins/auth.plugin.js'
 import type { JwtPayload } from '../../domain/types.js'
 
+// ── IMPORT AUDIT LOG (CORRIGÉ) ──────────────────────────────────────────────
+import { createAuditLogUseCase } from '../../use-cases/audit-log/create-audit-log.use-case.js'
+import { logger } from '../../infrastructure/logger.js'
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1)
@@ -44,6 +48,20 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       userRepository,
       (payload) => app.jwt.sign(payload, { expiresIn: '8h' })
     )
+
+    // ── FIRE-AND-FORGET : TRACABILITÉ (CORRIGÉ) ─────────────────────────────
+    // Conformément au pattern du projet : 1 seul argument !
+    createAuditLogUseCase({
+      action: 'LOGIN',
+      entite: 'USER',
+      entiteId: result.user.id,
+      userId: result.user.id,
+      meta: { 
+        ip: request.ip, 
+        userAgent: request.headers['user-agent'] 
+      }
+    }).catch(err => logger.error('Erreur AuditLog Login:', err))
+    // ────────────────────────────────────────────────────────────────────────
 
     return reply.status(200).send({ success: true, ...result })
   })

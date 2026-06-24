@@ -1,6 +1,10 @@
 /**
  * @file api.types.ts
  * @description Types TypeScript partagés — forme exacte des données de l'API.
+ *
+ * MODIFICATIONS v2 :
+ * Mission       → +sousZone, +periode, +ecartMm, +observationsNc (nouveaux champs BDD)
+ * MissionFormData → idem
  */
 
 export type Role = 'BRIGADE' | 'IGT' | 'ADMIN'
@@ -31,6 +35,35 @@ export type TypeOuvrage =
   | 'FONDATION'
   | 'VRD'
   | 'AUTRE'
+  | 'FIXATION_BOULONS_CREMAILLERES_AV_BETONNAGE'
+  | 'FIXATION_BOULONS_CREMAILLERES_AP_BETONNAGE'
+  | 'SUPPORT_GRADIN'
+  | 'DALLES_AV_BETONNAGE'
+  | 'DALLES_AP_BETONNAGE'
+  | 'IMPLANTATION_GENERAL'
+  | 'LIT_POSE'
+  | 'COFFRAGE_VOILES_REGARD'
+  | 'VOILE_REGARD_AP_BETONNAGE'
+  | 'COFFRAGE_RADIER'
+  | 'COFFRAGE_DALLE'
+  | 'COFFRAGE_GROS_BETON'
+  | 'GROS_BETON_AP_BETONNAGE'
+  | 'PIEUX_IMPLANTATION'
+  | 'PIEUX_EXCENTREMENT_AV'
+  | 'PIEUX_EXCENTREMENT_AP'
+  | 'ASS_FOND_FOUILLE'
+  | 'ASS_FIL_EAU'
+  | 'ASS_LIT_POSE'
+  | 'ASS_COFFRAGE_VOILES_REGARD'
+  | 'ASS_VOILE_REGARD_AP_BETONNAGE'
+  | 'ASS_COFFRAGE_RADIER'
+  | 'ASS_COTE_RADIER'
+  | 'ASS_COFFRAGE_DALLE'
+  | 'ASS_DALL_AP_BETONNAGE'
+  | 'ASS_COFFRAGE_GROS_BETON'
+  | 'ASS_GROS_BETON_AP_BETONNAGE'
+  | 'ASS_IMPLANTATION_GENERAL'
+
 
 export type CategorieAssainissement =
   | 'FOND_DE_FOUILLE'
@@ -44,14 +77,32 @@ export type CategorieAssainissement =
   | 'COFFRAGE_GROS_BETON'
   | 'GROS_BETON_AP_BETONNAGE'
   | 'IMPLANTATION_GENERAL'
+  | 'DALL_AP_BETONNAGE'
   | 'AUTRE'
 
 export type ZoneGSC = 'A' | 'B' | 'C' | 'D' | 'HORS_ZONE'
 export type ConditionMeteo = 'BEAU' | 'NUAGEUX' | 'PLUIE' | 'VENT_FORT' | 'BROUILLARD'
+
 export type NatureIntervention =
   | 'IMPLANTATION'
+  | 'CONTROLE_IMPLANTATION'
+  | 'CONTROLE_COFFRAGE'
+  | 'CONTROLE_VERTICALITE'
+  | 'CONTROLE_NIVELLEMENT'
+  | 'CONTROLE_PLANEITE'
+  | 'RECEPTION_AVANT_BETONNAGE'
+  | 'RECEPTION_APRES_BETONNAGE'
+  | 'RECEPTION_APRES_DECOFFRAGE'
+  | 'CONTROLE_FOND_FOUILLE'
+  | 'CONTROLE_FIL_EAU'
+  | 'CONTROLE_COTE_RADIER'
+  | 'LEVE_CONTRADICTOIRE'
+  | 'LEVE_AS_BUILT'
+  | 'CONTROLE_PENTE'
+  | 'AUTRE'
   | 'CONTROLE_GEOMETRIQUE'
   | 'CONTROLE_ALTIMETRIQUE'
+  | 'CONTROLE_NIVELLEMNT'
   | 'RECEPTION'
   | 'CONTRADICTOIRE'
   | 'RELEVE_TOPOGRAPHIQUE'
@@ -66,18 +117,26 @@ export type AppareilMesure =
   | 'NIVEAU_OPTIQUE'
   | 'AUTRE'
 
+export type ProvenanceAppareil = 'GEOCODING' | 'ENTREPRISE'
+
 export type StadeCollage =
+  | 'PREMIER_COLLAGE'
+  | 'DEUXIEME_COLLAGE'
+  | 'TROISIEME_COLLAGE'
+  | 'PREMIERE_LEVEE'
+  | 'DEUXIEME_LEVEE'
+  | 'TROISIEME_LEVEE'
+  | 'LEVEE_FINALE'
+  | 'NA'
   | 'AVANT_BETONNAGE'
   | 'APRES_BETONNAGE'
   | 'AVANT_SOUDURE'
   | 'APRES_SOUDURE'
   | 'RECEPTION_FINALE'
 
-/**
- * ResultatControle — valeurs COMPLÈTES synchronisées BDD + export.
- * PAS d'abréviations (C/NC/R) — utiliser CONFORME/NON_CONFORME/RESERVE.
- */
 export type ResultatControle = 'CONFORME' | 'NON_CONFORME' | 'RESERVE'
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface User {
   id: string; nom: string; prenom: string; email: string; role: Role; brigadeId?: string
@@ -100,36 +159,43 @@ export interface Controle {
 }
 
 export interface Mission {
-  id: string
+  id:     string
   statut: StatutMission
   heureDebut: string | null
   heureFin:   string | null
 
-  // Localisation
+  // ── Localisation ──────────────────────────────────────────────
   zone:          ZoneGSC | null
+  sousZone:      string | null        // NEW v2 — sous-zone libre
   axe:           string | null
   fil:           string | null
   niveau:        string | null
   partieOuvrage: string | null
 
-  // Intervention
-  nature:          NatureIntervention | null
-  appareil:        AppareilMesure | null
-  travailRealise:  string | null
-  stadeCollage:    StadeCollage | null
+  // ── Intervention ──────────────────────────────────────────────
+  nature:             NatureIntervention | null
+  appareil:           AppareilMesure | null
+  provenanceAppareil: ProvenanceAppareil | null
+  nomAppareil:        string | null   // NEW v2 — nom libre appareil
+  travailRealise:     string | null
+  stadeCollage:       StadeCollage | null
+  periode:            string | null   // NEW v2 — JOUR | NUIT
+  ecartMm:            number | null   // NEW v2 — écart mesuré (mm)
 
-  // Résultat
-  conditionMeteo: ConditionMeteo | null
+  // ── Résultat ──────────────────────────────────────────────────
   resultat:       ResultatControle | null
+  observationsNc: string | null       // NEW v2 — détail si NC
   observations:   string | null
+  estNC?:         boolean
 
-  // Nouveaux champs CDC
-  typeOuvrage?:             TypeOuvrage | null
-  categorieAssainissement?: CategorieAssainissement | null
-  ficheReference?:          string | null
+  // ── Champs CDC export Excel ────────────────────────────────────
+  typeOuvrage:             TypeOuvrage | null
+  categorieAssainissement: CategorieAssainissement | null
+  ficheReference:          string | null
 
-  // Relations
-  ficheId: string; ouvrageId: string
+  // ── Relations ─────────────────────────────────────────────────
+  ficheId: string
+  ouvrageId: string
   ouvrage: {
     id: string; reference: string; designation: string; type: TypeOuvrage
     axe: string | null; niveau: string | null
@@ -140,6 +206,7 @@ export interface Mission {
 
 export interface Fiche {
   id: string; date: string; statut: StatutFiche; observations: string | null
+  conditionMeteo: ConditionMeteo | null
   brigadeId: string; createurId: string; validateurId: string | null
   brigade: { id: string; nom: string; chef: string }
   createur: { id: string; nom: string; prenom: string }
@@ -171,24 +238,41 @@ export interface FichesResponse {
 
 export interface Pagination { total: number; page: number; limit: number }
 
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface MissionFormData {
   ouvrageId: string
+
+  // Localisation
   zone?:          ZoneGSC
+  sousZone?:      string              // NEW v2
   axe?:           string
   fil?:           string
   niveau?:        string
   partieOuvrage?: string
-  nature?:         NatureIntervention
-  appareil?:       AppareilMesure
-  travailRealise?: string
-  stadeCollage?:   StadeCollage
-  conditionMeteo?: ConditionMeteo
+
+  // Intervention
+  nature?:             NatureIntervention
+  appareil?:           AppareilMesure
+  provenanceAppareil?: ProvenanceAppareil
+  nomAppareil?:        string         // NEW v2
+  travailRealise?:     string
+  stadeCollage?:       StadeCollage
+  periode?:            string         // NEW v2
+  ecartMm?:            number         // NEW v2
+
+  // Résultat
   resultat?:       ResultatControle
+  observationsNc?: string             // NEW v2
   observations?:   string
+
+  // Export Excel
   typeOuvrage?:             TypeOuvrage
   categorieAssainissement?: CategorieAssainissement
   ficheReference?:          string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type StatutCP = 'BROUILLON' | 'SOUMIS' | 'VALIDE'
 export type TypeEvenement = 'VISITE_CHANTIER' | 'REUNION' | 'INCIDENT' | 'CONSTAT' | 'AUTRE'
