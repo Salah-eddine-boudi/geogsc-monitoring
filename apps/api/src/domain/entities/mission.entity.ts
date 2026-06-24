@@ -1,59 +1,84 @@
 /**
  * @file mission.entity.ts
- * @description Entité Mission pure — aucune dépendance externe.
+ * @description Entités domain pour les missions (= réceptions terrain).
+ * NB: "mission" dans le code, "réception" à l'affichage.
  *
- * QU'EST-CE QU'UNE MISSION ?
- * C'est une intervention topographique spécifique effectuée
- * par une brigade dans une journée sur un ouvrage précis.
- *
-
- * RELATION :
- * FicheJournaliere (1) ──── (N) Mission (N) ──── (1) Ouvrage
- *
- * UNE fiche peut avoir PLUSIEURS missions.
- * Chaque mission concerne UN seul ouvrage.
+ * MODIFICATION v2 :
+ * ✅ Tous les nouveaux champs CDC v2 ajoutés à MissionEntity
+ *    (sousZone, provenanceAppareil, nomAppareil, periode, ecartMm,
+ *     observationsNc, typeOuvrage, categorieAssainissement, ficheReference)
  */
 
-export type MissionEntity = {
-  id: string
-  statut: 'PLANIFIEE' | 'EN_COURS' | 'TERMINEE'
-  heureDebut: Date | null   
-  heureFin: Date | null     
-  observations: string | null
-  ficheId: string           
-  ouvrageId: string         
+export type StatutMission = 'PLANIFIEE' | 'EN_COURS' | 'TERMINEE'
+
+// ─── Entité Mission (retour BDD sans relations) ───────────────────────────────
+export interface MissionEntity {
+  id:     string
+  statut: StatutMission
+
+  heureDebut: Date | null
+  heureFin:   Date | null
+
+  // ── §2 Localisation ───────────────────────────────────────────
+  zone:          string | null
+  sousZone:      string | null   // NEW v2 — sous-zone libre
+  axe:           string | null
+  fil:           string | null
+  niveau:        string | null
+  partieOuvrage: string | null
+
+  // ── §3 Intervention ───────────────────────────────────────────
+  nature:             string | null
+  appareil:           string | null
+  provenanceAppareil: string | null   // NEW v2 — GEOCODING | ENTREPRISE
+  nomAppareil:        string | null   // NEW v2 — texte libre
+  travailRealise:     string | null
+  stadeCollage:       string | null
+  periode:            string | null   // NEW v2 — JOUR | NUIT
+  ecartMm:            number | null   // NEW v2 — écart mesuré (mm)
+
+  // ── §4 Résultat ───────────────────────────────────────────────
+  resultat:       string | null
+  observationsNc: string | null       // NEW v2 — détail si NC
+  observations:   string | null
+
+  // ── Champs export Excel ───────────────────────────────────────
+  typeOuvrage:             string | null   // NEW v2 (était optionnel avant)
+  categorieAssainissement: string | null   // NEW v2
+  ficheReference:          string | null   // NEW v2
+
+  // ── Relations ─────────────────────────────────────────────────
+  ficheId:   string
+  ouvrageId: string
+
+  // ── Audit ─────────────────────────────────────────────────────
   createdAt: Date
   updatedAt: Date
 }
 
-/**
- * Mission enrichie avec ses relations.
- * Utilisée pour l'affichage détaillé.
- *
- * SCÉNARIO :
- * IGT ouvre une fiche → voit toutes les missions avec
- * le nom de l'ouvrage et les contrôles effectués.
- */
-export type MissionWithRelations = MissionEntity & {
+// ─── Mission avec ses relations (retour API) ──────────────────────────────────
+export interface MissionWithRelations extends MissionEntity {
   ouvrage: {
-    id: string
-    reference: string    // ex: "PLT-A-12"
-    designation: string  // ex: "Platine charpente axe A-12"
-    type: string         // ex: "PLATINE"
-    axe: string | null   // ex: "Axe A"
-    niveau: string | null // ex: "R+1"
+    id:          string
+    reference:   string
+    designation: string
+    type:        string
+    axe:         string | null
+    niveau:      string | null
   }
   controles: {
-    id: string
-    type: string
-    statut: string
-    ecartX: number | null
-    ecartY: number | null
-    ecartZ: number | null
-    toleranceX: number | null
-    toleranceY: number | null
-    toleranceZ: number | null
-    observations: string | null
+    id:            string
+    type:          string
+    statut:        string
+    ecartX:        number | null
+    ecartY:        number | null
+    ecartZ:        number | null
+    toleranceX:    number | null
+    toleranceY:    number | null
+    toleranceZ:    number | null
+    observations:  string | null
+    missionId:     string
+    createdAt:     Date
   }[]
   _count: {
     controles: number

@@ -1,104 +1,99 @@
 /**
  * @file create-mission.use-case.ts
- * @description Use-case : créer une mission dans une fiche journalière.
- *
- * SCÉNARIO :
- * 09h00 — M. AIT KADIR commence sa première mission :
- * → Contrôle implantation platines — Zone D, Axe D03/D05, fil M/N, R+1
- * → Appareil : Trimble SX12
- * → Résultat : C (Conforme)
+ * @description Use-case : créer une réception (mission) dans une fiche journalière.
+ * NB: "mission" dans le code, "réception" à l'affichage.
  *
  * RÈGLES MÉTIER :
- * 1. La fiche doit exister
- * 2. La fiche doit être en BROUILLON
- * 3. La brigade ne peut ajouter des missions qu'à SA fiche
- * 4. L'ouvrage doit exister ET être actif
+ * 1. La fiche doit exister                          → NotFoundError
+ * 2. Brigade : ne peut accéder qu'à SA fiche        → ForbiddenError
+ * 3. La fiche doit être en BROUILLON                → AppError STATUT_INVALIDE
+ * 4. L'ouvrage doit exister et être actif           → NotFoundError
  */
 
 import type { IMissionRepository } from '../../domain/repositories/mission.repository.js'
-import type { IFicheRepository } from '../../domain/repositories/fiche.repository.js'
+import type { IFicheRepository }   from '../../domain/repositories/fiche.repository.js'
 import type { IOuvrageRepository } from '../../domain/repositories/ouvrage.repository.js'
-import type { MissionEntity } from '../../domain/entities/mission.entity.js'
+import type { MissionEntity }      from '../../domain/entities/mission.entity.js'
 import { NotFoundError, ForbiddenError, AppError } from '../../domain/errors.js'
 
-/**
- * Type d'entrée du use-case.
- *
- * POURQUOI REDÉCLARER LES TYPES ICI ?
- * Le use-case ne connaît pas Zod ni Prisma — Clean Architecture.
- * Il reçoit des données déjà validées depuis la route.
- * Il passe des données typées au repository.
- * Chaque couche a ses propres types.
- */
 export type CreateMissionInput = {
-  // ── Obligatoire ────────────────────────────────────────────────
-  ficheId:   string
-  ouvrageId: string
-
-  // ── Localisation ──────────────────────────────────────────────
-  zone?:          string   // Zone A/B/C/D du stade
-  axe?:           string   // ex: "Axe D03/D05"
-  fil?:           string   // ex: "fil M/N"
-  niveau?:        string   // ex: "R+1", "SSL"
-  partieOuvrage?: string   // ex: "Crémaillère intermédiaire"
-
-  // ── Intervention ──────────────────────────────────────────────
-  nature?:         string  // NatureIntervention enum
-  appareil?:       string  // AppareilMesure enum
-  travailRealise?: string  // description libre
-  stadeCollage?:   string  // StadeCollage enum
-
-  // ── Résultat ──────────────────────────────────────────────────
-  conditionMeteo?: string  // ConditionMeteo enum
-  resultat?:       string  // "C", "NC" ou "R"
-  observations?:   string
-
-  // ── Auth ──────────────────────────────────────────────────────
+  ficheId:       string
+  ouvrageId:     string
   userBrigadeId: string | undefined
   userRole:      string
+
+  zone?:          string
+  sousZone?:      string
+  axe?:           string
+  fil?:           string
+  niveau?:        string
+  partieOuvrage?: string
+
+  nature?:             string
+  stadeCollage?:       string
+  provenanceAppareil?: string
+  nomAppareil?:        string
+  periode?:            string
+  ecartMm?:            number
+  travailRealise?:     string
+
+  resultat?:       string
+  observationsNc?: string
+
+  typeOuvrage?:             string
+  categorieAssainissement?: string
+  ficheReference?:          string
+  observations?:            string
 }
 
 export async function createMissionUseCase(
   input: CreateMissionInput,
   missionRepository: IMissionRepository,
-  ficheRepository: IFicheRepository,
+  ficheRepository:   IFicheRepository,
   ouvrageRepository: IOuvrageRepository
 ): Promise<MissionEntity> {
 
-  // ── ÉTAPE 1 — Vérifie que la fiche existe ─────────────────────
   const fiche = await ficheRepository.findById(input.ficheId)
   if (!fiche) throw new NotFoundError('Fiche journalière')
 
-  // ── ÉTAPE 2 — Contrôle d'accès Brigade ────────────────────────
-  if (
-    input.userRole === 'BRIGADE' &&
-    fiche.brigadeId !== input.userBrigadeId
-  ) {
+  if (input.userRole === 'BRIGADE' && fiche.brigadeId !== input.userBrigadeId) {
     throw new ForbiddenError()
   }
 
-  // ── ÉTAPE 3 — Fiche doit être en BROUILLON ────────────────────
   if (fiche.statut !== 'BROUILLON') {
     throw new AppError(
       'STATUT_INVALIDE',
-      `Impossible d'ajouter une mission à une fiche "${fiche.statut}". La fiche doit être en BROUILLON.`,
+      `Impossible d'ajouter une réception à une fiche en statut "${fiche.statut}". La fiche doit être en BROUILLON.`,
       400
     )
   }
 
-  // ── ÉTAPE 4 — Vérifie l'ouvrage ───────────────────────────────
   const ouvrage = await ouvrageRepository.findById(input.ouvrageId)
   if (!ouvrage || !ouvrage.actif) {
     throw new NotFoundError('Ouvrage')
   }
 
-  // ── ÉTAPE 5 — Crée la mission avec tous les champs CDC ─────────
-  // On extrait les champs auth (non sauvegardés en BDD)
-  // et on passe tout le reste au repository
-  const { userBrigadeId, userRole, ficheId, ...data } = input
-
   return missionRepository.create({
-    ficheId,
-    ...data  // contient ouvrageId + tous les nouveaux champs
+    ficheId:   input.ficheId,
+    ouvrageId: input.ouvrageId,
+    zone:          input.zone,
+    sousZone:      input.sousZone,
+    axe:           input.axe,
+    fil:           input.fil,
+    niveau:        input.niveau,
+    partieOuvrage: input.partieOuvrage,
+    nature:             input.nature,
+    stadeCollage:       input.stadeCollage,
+    provenanceAppareil: input.provenanceAppareil,
+    nomAppareil:        input.nomAppareil,
+    periode:            input.periode,
+    ecartMm:            input.ecartMm,
+    travailRealise:     input.travailRealise,
+    resultat:       input.resultat,
+    observationsNc: input.observationsNc,
+    typeOuvrage:             input.typeOuvrage,
+    categorieAssainissement: input.categorieAssainissement,
+    ficheReference:          input.ficheReference,
+    observations:            input.observations,
   })
 }

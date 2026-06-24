@@ -25,11 +25,9 @@ import type { IBrigadeRepository } from '../../domain/brigade.repository.js'
 import type { BrigadeEntity } from '../../domain/entities/brigade.entity.js'
 import { NotFoundError, ConflictError } from '../../domain/errors.js'
 
-
-
 export type UpdateBrigadeInput = {
-  id: string  // brigade à modifier (obligatoire)
-  nom?: string
+  id:    string   // brigade à modifier (obligatoire)
+  nom?:  string
   chef?: string
   actif?: boolean
 }
@@ -45,23 +43,21 @@ export async function updateBrigadeUseCase(
   brigadeRepository: IBrigadeRepository
 ): Promise<BrigadeEntity> {
 
-  
+  // ── Étape 1 — La brigade existe ? ────────────────────────────────────────────
   const brigade = await brigadeRepository.findById(input.id)
   if (!brigade) {
     throw new NotFoundError('Brigade')
   }
 
-  
+  // ── Étape 2 — Unicité du nom si changement ────────────────────────────────────
   if (input.nom && input.nom !== brigade.nom) {
-    // le nouveau nom est différent de l'actuel → vérifie doublon
     const existante = await brigadeRepository.findByNom(input.nom)
     if (existante) {
       throw new ConflictError(`Une brigade avec le nom "${input.nom}" existe déjà`)
     }
   }
 
-  
-
+  // ── Étape 3 — Mise à jour (champs fournis uniquement) ────────────────────────
   const { id, ...data } = input
 
   return brigadeRepository.update(id, data)

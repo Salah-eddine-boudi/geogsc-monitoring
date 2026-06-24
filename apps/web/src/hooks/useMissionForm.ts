@@ -1,19 +1,7 @@
 /**
- * @file useMissionForm.ts
- * @description Hook personnalisé — logique du formulaire mission.
- *
- * CE QUE CE HOOK GÈRE :
- * → État du formulaire (react-hook-form + Zod)
- * → Soumission (création ou modification)
- * → Invalidation du cache React Query après succès
- * → Messages toast succès/erreur
- *
- * CE QUE CE HOOK NE GÈRE PAS :
- * → L'affichage (JSX) → c'est le rôle de MissionFormModal
- * → La navigation → c'est le rôle du router
- *
- * PATTERN : Séparation logique/présentation
- * Documenté dans les bonnes pratiques du projet.
+ * @file useMissionForm.ts — v4
+ * Ajout : onMissionCreated(id) pour récupérer l'ID après création
+ * → permet d'uploader les photos immédiatement après
  */
 
 import { useForm } from 'react-hook-form'
@@ -21,191 +9,122 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { missionsService } from '../services/missions.service'
+import { missionsService, type CreateMissionPayload } from '../services/missions.service'
+import { getErrorMessage } from '../utils/error-messages'
 import type { Mission } from '../types/api.types'
 
-// ─── SCHÉMA ZOD ───────────────────────────────────────────────────────────────
-
-/**
- * Schéma de validation côté frontend.
- *
- * POURQUOI DUPLIQUER LE SCHÉMA BACKEND ?
- * → Validation immédiate sans appel réseau
- * → Messages d'erreur en français directement dans le formulaire
- * → UX bien meilleure sur mobile terrain
- *
- * RÈGLE : seul ouvrageId est obligatoire.
- * Saisie progressive — le brigadier complète au fur et à mesure.
- */
 const missionSchema = z.object({
-  ouvrageId: z.string().min(1, 'Veuillez sélectionner un ouvrage'),
-
-  // Localisation
-  zone:          z.enum(['A', 'B', 'C', 'D', 'HORS_ZONE']).optional(),
-  axe:           z.string().max(50).optional(),
-  fil:           z.string().max(20).optional(),
-  niveau:        z.string().max(20).optional(),
-  partieOuvrage: z.string().max(200).optional(),
-
-  // Intervention
-  nature: z.enum([
-    'IMPLANTATION', 'CONTROLE_GEOMETRIQUE', 'CONTROLE_ALTIMETRIQUE',
-    'RECEPTION', 'CONTRADICTOIRE', 'RELEVE_TOPOGRAPHIQUE', 'PIQUETAGE'
-  ]).optional(),
-  appareil: z.enum([
-    'TRIMBLE_SX12', 'TRIMBLE_S7', 'LEICA_TS16',
-    'LEICA_NA730', 'GPS_TRIMBLE', 'NIVEAU_OPTIQUE', 'AUTRE'
-  ]).optional(),
-  travailRealise: z.string().max(500).optional(),
-  stadeCollage: z.enum([
-    'AVANT_BETONNAGE', 'APRES_BETONNAGE',
-    'AVANT_SOUDURE', 'APRES_SOUDURE', 'RECEPTION_FINALE'
-  ]).optional(),
-
-  // Résultat
-  conditionMeteo: z.enum([
-    'BEAU', 'NUAGEUX', 'PLUIE', 'VENT_FORT', 'BROUILLARD'
-  ]).optional(),
-  resultat:     z.enum(['C', 'NC', 'R']).optional(),
-  observations: z.string().max(500).optional()
+  ouvrageId:               z.string().min(1, 'Veuillez sélectionner un ouvrage'),
+  typeOuvrage:             z.string().optional(),
+  categorieAssainissement: z.string().optional(),
+  ficheReference:          z.string().max(100).optional(),
+  zone:                    z.string().optional(),
+  sousZone:                z.string().max(100).optional(),
+  axe:                     z.string().max(50).optional(),
+  fil:                     z.string().max(20).optional(),
+  niveau:                  z.string().max(20).optional(),
+  partieOuvrage:           z.string().max(300).optional(),
+  nature:                  z.string().optional(),
+  stadeCollage:            z.string().optional(),
+  provenanceAppareil:      z.string().optional(),
+  nomAppareil:             z.string().max(100).optional(),
+  ecartMm:                 z.string().optional(),
+  travailRealise:          z.string().max(500).optional(),
+  resultat:                z.string().optional(),
+  observationsNc:          z.string().max(500).optional(),
+  observations:            z.string().max(500).optional(),
 })
 
-/**
- * Type inféré depuis le schéma Zod.
- * TypeScript connaît automatiquement la forme du formulaire.
- */
 type MissionSchemaType = z.infer<typeof missionSchema>
 
-// ─── TYPES DU HOOK ────────────────────────────────────────────────────────────
-
 interface UseMissionFormProps {
-  ficheId: string
-
-  /**
-   * Mission existante → mode édition.
-   * Undefined → mode création.
-   */
-  mission?: Mission
-
-  onSuccess: () => void
-  onClose: () => void
+  ficheId:           string
+  mission?:          Mission
+  onSuccess:         () => void
+  onClose:           () => void
+  onError?:          (message: string) => void
+  onMissionCreated?: (missionId: string) => void  // NEW — ID de la mission créée
 }
 
-// ─── HOOK ─────────────────────────────────────────────────────────────────────
-
 export function useMissionForm({
-  ficheId,
-  mission,
-  onSuccess,
-  onClose
+  ficheId, mission, onSuccess, onClose, onError, onMissionCreated,
 }: UseMissionFormProps) {
 
-  /**
-   * queryClient → permet d'invalider le cache React Query
-   * après une mutation réussie.
-   * Déclenche un re-fetch automatique de la fiche.
-   */
   const queryClient = useQueryClient()
 
-  /**
-   * useForm → hook principal de react-hook-form.
-   *
-   * defaultValues → pré-remplit le formulaire en mode édition.
-   * En mode création → champs vides.
-   *
-   * zodResolver → connecte notre schéma Zod à react-hook-form.
-   * La validation est déclenchée automatiquement à la soumission
-   * et optionnellement onChange/onBlur.
-   */
   const {
-    register,      // connecte un input au formulaire
-    handleSubmit,  // wrapper qui valide avant d'appeler onSubmit
-    watch,         // observe la valeur d'un champ en temps réel
-    setValue,      // modifie programmatiquement la valeur d'un champ
-    reset,         // réinitialise le formulaire
-    formState: {
-      errors,       // erreurs de validation par champ
-      isSubmitting  // true pendant la soumission
-    }
+    register, handleSubmit, watch, setValue, reset,
+    formState: { errors, isSubmitting },
   } = useForm<MissionSchemaType>({
     resolver: zodResolver(missionSchema),
-
-    /**
-     * Valeurs par défaut :
-     * Mode édition → prérempli avec la mission existante
-     * Mode création → tout vide sauf ouvrageId si passé
-     */
     defaultValues: mission ? {
-      ouvrageId:      mission.ouvrageId,
-      zone:           mission.zone           ?? undefined,
-      axe:            mission.axe            ?? undefined,
-      fil:            mission.fil            ?? undefined,
-      niveau:         mission.niveau         ?? undefined,
-      partieOuvrage:  mission.partieOuvrage  ?? undefined,
-      nature:         mission.nature         ?? undefined,
-      appareil:       mission.appareil       ?? undefined,
-      travailRealise: mission.travailRealise ?? undefined,
-      stadeCollage:   mission.stadeCollage   ?? undefined,
-      conditionMeteo: mission.conditionMeteo ?? undefined,
-      resultat:       mission.resultat       ?? undefined,
-      observations:   mission.observations   ?? undefined
-    } : {}
+      ouvrageId:               mission.ouvrageId,
+      typeOuvrage:             mission.typeOuvrage             ?? undefined,
+      categorieAssainissement: mission.categorieAssainissement ?? undefined,
+      ficheReference:          mission.ficheReference          ?? undefined,
+      zone:                    mission.zone                    ?? undefined,
+      sousZone:                mission.sousZone                ?? undefined,
+      axe:                     mission.axe                     ?? undefined,
+      fil:                     mission.fil                     ?? undefined,
+      niveau:                  mission.niveau                  ?? undefined,
+      partieOuvrage:           mission.partieOuvrage           ?? undefined,
+      nature:                  mission.nature                  ?? undefined,
+      stadeCollage:            mission.stadeCollage            ?? undefined,
+      provenanceAppareil:      mission.provenanceAppareil      ?? undefined,
+      nomAppareil:             mission.nomAppareil             ?? undefined,
+      ecartMm:                 mission.ecartMm != null ? String(mission.ecartMm) : undefined,
+      travailRealise:          mission.travailRealise          ?? undefined,
+      resultat:                mission.resultat                ?? undefined,
+      observationsNc:          mission.observationsNc          ?? undefined,
+      observations:            mission.observations            ?? undefined,
+    } : {
+      provenanceAppareil: 'GEOCODING',
+      stadeCollage:       'NA',
+    },
   })
 
-  /**
-   * isEditMode → true si on modifie une mission existante.
-   * Utilisé pour changer le titre et le texte du bouton.
-   */
   const isEditMode = !!mission
 
-  /**
-   * onSubmit → appelé par handleSubmit APRÈS validation Zod réussie.
-   *
-   * MODE CRÉATION → POST /fiches/:ficheId/missions
-   * MODE ÉDITION  → PATCH /fiches/:ficheId/missions/:id
-   */
   const onSubmit = async (data: MissionSchemaType) => {
     try {
-      if (isEditMode && mission) {
-        // Mode édition — PATCH
-        await missionsService.update(ficheId, mission.id, data)
-        toast.success('Mission mise à jour ✓')
-      } else {
-        // Mode création — POST
-        await missionsService.create(ficheId, data)
-        toast.success('Mission ajoutée ✓')
+      const cleaned: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(data)) {
+        cleaned[k] = v === '' ? null : v
       }
 
-      /**
-       * Invalide le cache de la fiche.
-       * React Query re-fetche automatiquement les données fraîches.
-       * L'accordéon des missions se met à jour sans refresh manuel.
-       */
-      await queryClient.invalidateQueries({ queryKey: ['fiche', ficheId] })
+      if (cleaned.ecartMm !== null && cleaned.ecartMm !== undefined) {
+        const n = parseFloat(cleaned.ecartMm as string)
+        cleaned.ecartMm = isNaN(n) ? null : n
+      }
 
+      const payload = cleaned as unknown as CreateMissionPayload
+
+      if (isEditMode && mission) {
+        await missionsService.update(ficheId, mission.id, payload)
+        toast.success('Réception mise à jour ✓')
+        onMissionCreated?.(mission.id)
+      } else {
+        const nouvelleMission = await missionsService.create(ficheId, payload)
+        toast.success('Réception enregistrée ✓')
+        // Transmettre l'ID pour que le modal puisse uploader les photos
+        onMissionCreated?.(nouvelleMission.id)
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['fiche', ficheId] })
       onSuccess()
       onClose()
       reset()
 
     } catch (error: unknown) {
-      const axiosError = error as {
-        response?: { data?: { message?: string; code?: string } }
-      }
-      const message = axiosError.response?.data?.message ?? 'Erreur lors de la sauvegarde'
-      toast.error(message)
+      const message = getErrorMessage(error)
+      onError?.(message)
+      toast.error(message, { duration: 5000 })
     }
   }
 
   return {
-    // react-hook-form
     register,
     handleSubmit: handleSubmit(onSubmit),
-    watch,
-    setValue,
-    errors,
-    isSubmitting,
-
-    // Métadonnées
-    isEditMode
+    watch, setValue, errors, isSubmitting, isEditMode,
   }
 }
