@@ -24,6 +24,7 @@ import { cpRoutes } from './interfaces/routes/cp.routes.js'
 import { dashboardRoutes } from './interfaces/routes/dashboard.routes.js'
 import { auditLogRoutes } from './interfaces/routes/audit-log.routes.js'
 import { photosRoutes } from './interfaces/routes/photos.routes.js' // 📸 Nouvelle route
+import { profileRoutes } from './interfaces/routes/profile.routes.js'
 
 dotenv.config()
 
@@ -79,6 +80,7 @@ await app.register(exportRoutes, { prefix: '/export' })
 await app.register(cpRoutes, { prefix: '/cp' })
 await app.register(dashboardRoutes, { prefix: '/dashboard' })
 await app.register(auditLogRoutes, { prefix: '/audit-logs' })
+await app.register(profileRoutes, { prefix: '/profile' })
 
 app.get('/health', async () => ({
   status: 'ok',
